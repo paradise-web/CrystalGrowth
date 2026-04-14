@@ -1,0 +1,39 @@
+{
+  "image_path": "img_test/MoOBr2.jpg",
+  "iteration_count": 3,
+  "review_passed": false,
+  "issues": [
+    {
+      "severity": "error",
+      "field": "reaction_equation",
+      "description": "反应方程式中左侧 Mo 的化学计量数与配料中的摩尔比不一致。根据配料，Mo : MoO₃ : C₆Br₆ = 1 : 2 : 1，但反应式中左侧为 Mo + 2MoO₃ + C₆Br₆，相当于总 Mo 原子数为 3，右侧 3MoO₂Br₂ 含 3 个 Mo，虽然原子守恒，但未明确区分原料来源，易引起误解。",
+      "suggestion": "建议将反应方程式改写为更清晰的形式，例如：Mo + 2MoO₃ + C₆Br₆ → 3MoO₂Br₂，并在注释中说明 Mo 和 MoO₃ 均为钼源。"
+    },
+    {
+      "severity": "warning",
+      "field": "process.high_temp",
+      "description": "CVT 方法的高温区为 700°C，低温区为 600°C，温差仅为 100°C，处于典型 CVT 温差下限（通常 ≥100–150°C），可能导致输运效率低或晶体生长不充分。",
+      "suggestion": "建议确认温差是否准确，若确实为 100°C，需评估其对晶体生长的影响；否则应修正温度值以确保足够温差。"
+    },
+    {
+      "severity": "warning",
+      "field": "ingredients[2].mass_g",
+      "description": "C₆Br₆ 的质量为 0.55g，结合其高分子量（555.5 g/mol）和设定的摩尔比 1，导致实际摩尔量偏低，可能影响输运效果。",
+      "suggestion": "建议核实 C₆Br₆ 的用量是否合理，或检查单位是否应为 mg 而非 g。当前质量下其摩尔数约为 0.99 mmol，而 Mo 为 1.98 mmol（0.19g / 95.94 g/mol），摩尔比接近 1:2（Mo:C₆Br₆），与标称摩尔比不符。",
+      "correction_hints": "重新核对 C₆Br₆ 的质量数值及单位，确认是否发生单位识别错误（如 mg 被误识为 g）"
+    },
+    {
+      "severity": "error",
+      "field": "ingredients[0].molar_ratio",
+      "description": "Mo 的摩尔比标注为 1，但其实际物质的量约为 0.19 / 95.94 ≈ 0.00198 mol；MoO₃ 的摩尔比标注为 2，其物质的量为 0.29 / 143.94 ≈ 0.00201 mol，两者摩尔比接近 1:1，而非 1:2。",
+      "suggestion": "实际摩尔比 Mo : MoO₃ ≈ 1 : 1.02，远偏离标称的 1 : 2。建议重新计算并修正摩尔比，或核查原料质量是否有误。",
+      "correction_hints": "检查 Mo 和 MoO₃ 的质量数值是否识别错误，尤其是小数点或单位"
+    },
+    {
+      "severity": "info",
+      "field": "results[2].description",
+      "description": "XRD 检测发现 Mo₄O₁₁ 杂质峰，说明反应不完全或副反应发生。",
+      "suggestion": "建议优化反应温度、时间或原料配比以提高相纯度。"
+    }
+  ]
+}

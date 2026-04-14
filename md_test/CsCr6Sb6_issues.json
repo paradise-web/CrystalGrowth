@@ -1,0 +1,25 @@
+{
+  "image_path": "img_test/CsCr6Sb6.png",
+  "iteration_count": 3,
+  "review_passed": false,
+  "issues": [
+    {
+      "severity": "error",
+      "field": "ingredients[0].mass_g",
+      "description": "Cs的质量标注存在矛盾：原始记录为'2.0712g'，但推算值为0.20712g。若按2.0712g计算，则摩尔比严重偏离10:3:30。",
+      "suggestion": "核实Cs的实际称量质量。若原始记录正确（2.0712g），则需修正摩尔比；若实际为0.20712g，则需在数据中明确标注以避免混淆。"
+    },
+    {
+      "severity": "warning",
+      "field": "ingredients[2].mass_g",
+      "description": "Sb的质量为5.1858g，接近总质量的大部分，结合方法为Solid State，应确认是否合理。",
+      "suggestion": "检查Sb的质量是否准确，确保未发生单位识别错误（如mg误作g）。"
+    },
+    {
+      "severity": "info",
+      "field": "process.high_temp",
+      "description": "温度同时使用K和°C表示，建议统一单位或保持一致性。",
+      "suggestion": "推荐统一使用K或°C，避免重复表达同一温度点。"
+    }
+  ]
+}
