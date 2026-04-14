@@ -19,3 +19,4 @@ pdfplumber>=0.10.0
 tqdm>=4.65.0
 
 # sk-eec9cb28d6804d18aaddcdb4bdd9a1b9
+protobuf==3.20.3
