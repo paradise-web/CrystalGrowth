@@ -198,7 +198,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         return None
 
 # ================= 主标签页 =================
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 首页", "📤 文件上传", "📚 历史记录", "📊 统计信息", "💬 知识问答"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏠 首页", "📤 文件上传", "📚 历史记录", "📊 统计信息"])# , "💬 知识问答"])
 
 # 全局变量
 api_key_input = ""
@@ -1390,122 +1390,122 @@ with tab4:
         import traceback
         st.code(traceback.format_exc())
 
-# 知识问答页
-with tab5:
-    st.markdown("<h1 class='main-title'>💬 知识问答</h1>", unsafe_allow_html=True)
-    st.markdown("欢迎使用晶体生长实验助手的知识问答功能！在这里，你可以向AI询问关于晶体生长实验的相关问题。")
-    
-    # 初始化聊天历史
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    
-    # 创建一个容器来显示聊天历史，使其可滚动
-    chat_container = st.container()
-    
-    # 显示聊天历史
-    with chat_container:
-        for message in st.session_state.chat_history:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-    
-    # 创建一个固定在底部的容器
-    input_container = st.container()
-    
-    with input_container:
-        # 用户输入 - 固定在底部
-        user_input = st.chat_input("请输入你的问题...")
-        
-        if user_input:
-            # 添加用户消息到聊天历史
-            st.session_state.chat_history.append({"role": "user", "content": user_input})
-            
-            # 重新显示聊天历史
-            with chat_container:
-                with st.chat_message("user"):
-                    st.markdown(user_input)
-                
-                # 生成AI响应
-                with st.chat_message("assistant"):
-                    # 创建一个占位符用于流式输出
-                    response_placeholder = st.empty()
-                    
-                    # 显示AI思考过程
-                    response_placeholder.markdown("<span style='color: #888;'>AI 正在思考...</span>", unsafe_allow_html=True)
-                    
-                    # 实际调用AI模型
-                    import os
-                    from openai import OpenAI
-                    
-                    # 使用与agent.py相同的API配置
-                    API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-eec9cb28d6804d18aaddcdb4bdd9a1b9")
-                    BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-                    
-                    # 构建系统提示
-                    system_prompt = "你是一位晶体生长领域的专家，精通各种晶体生长方法、原理和技术。请以专业、准确、详细的方式回答关于晶体生长的问题，包括但不限于生长方法、参数优化、常见问题及解决方案等。"
-                    
-                    try:
-                        # 初始化OpenAI客户端
-                        client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-                        
-                        # 构建消息历史
-                        messages = [
-                            {"role": "system", "content": system_prompt}
-                        ]
-                        
-                        # 添加历史聊天记录
-                        for msg in st.session_state.chat_history:
-                            messages.append({"role": msg["role"], "content": msg["content"]})
-                        
-                        # 调用AI模型
-                        full_response = ""
-                        
-                        # 使用流式输出
-                        for chunk in client.chat.completions.create(
-                            model="qwen-plus",
-                            messages=messages,
-                            stream=True
-                        ):
-                            if chunk.choices[0].delta.content:
-                                full_response += chunk.choices[0].delta.content
-                                response_placeholder.markdown(full_response)
-                        
-                        # 添加AI响应到聊天历史
-                        st.session_state.chat_history.append({"role": "assistant", "content": full_response})
-                    except Exception as e:
-                        # 如果API调用失败，使用默认响应
-                        error_response = f"抱歉，AI回答时出现错误：{str(e)}\n\n请检查API Key是否正确设置，或者稍后再试。"
-                        response_placeholder.markdown(error_response)
-                        st.session_state.chat_history.append({"role": "assistant", "content": error_response})
-    
-    # 操作按钮区域
-    button_col1, button_col2 = st.columns(2)
-    with button_col1:
-        if st.button("🗑️ 清除聊天历史", key="clear_chat"):
-            st.session_state.chat_history = []
-            # 强制页面刷新
-            st.rerun()
-    with button_col2:
-        # 导出对话为PDF
-        if st.button("📄 导出对话", key="export_chat"):
-            if st.session_state.chat_history:
-                # 生成PDF内容
-                pdf_content = "# 晶体生长实验助手 - 知识问答记录\n\n"
-                pdf_content += f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                
-                for i, message in enumerate(st.session_state.chat_history, 1):
-                    role = "用户" if message["role"] == "user" else "AI"
-                    pdf_content += f"## {i}. {role}\n"
-                    pdf_content += f"{message['content']}\n\n"
-                
-                # 提供下载
-                st.download_button(
-                    label="⬇️ 下载PDF",
-                    data=pdf_content,
-                    file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                    mime="text/plain"
-                )
-            else:
-                st.info("没有聊天记录可导出")
+# # 知识问答页
+# with tab5:
+#     st.markdown("<h1 class='main-title'>💬 知识问答</h1>", unsafe_allow_html=True)
+#     st.markdown("欢迎使用晶体生长实验助手的知识问答功能！在这里，你可以向AI询问关于晶体生长实验的相关问题。")
+#     
+#     # 初始化聊天历史
+#     if "chat_history" not in st.session_state:
+#         st.session_state.chat_history = []
+#     
+#     # 创建一个容器来显示聊天历史，使其可滚动
+#     chat_container = st.container()
+#     
+#     # 显示聊天历史
+#     with chat_container:
+#         for message in st.session_state.chat_history:
+#             with st.chat_message(message["role"]):
+#                 st.markdown(message["content"])
+#     
+#     # 创建一个固定在底部的容器
+#     input_container = st.container()
+#     
+#     with input_container:
+#         # 用户输入 - 固定在底部
+#         user_input = st.chat_input("请输入你的问题...")
+#         
+#         if user_input:
+#             # 添加用户消息到聊天历史
+#             st.session_state.chat_history.append({"role": "user", "content": user_input})
+#             
+#             # 重新显示聊天历史
+#             with chat_container:
+#                 with st.chat_message("user"):
+#                     st.markdown(user_input)
+#                 
+#                 # 生成AI响应
+#                 with st.chat_message("assistant"):
+#                     # 创建一个占位符用于流式输出
+#                     response_placeholder = st.empty()
+#                     
+#                     # 显示AI思考过程
+#                     response_placeholder.markdown("<span style='color: #888;'>AI 正在思考...</span>", unsafe_allow_html=True)
+#                     
+#                     # 实际调用AI模型
+#                     import os
+#                     from openai import OpenAI
+#                     
+#                     # 使用与agent.py相同的API配置
+#                     API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-eec9cb28d6804d18aaddcdb4bdd9a1b9")
+#                     BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+#                     
+#                     # 构建系统提示
+#                     system_prompt = "你是一位晶体生长领域的专家，精通各种晶体生长方法、原理和技术。请以专业、准确、详细的方式回答关于晶体生长的问题，包括但不限于生长方法、参数优化、常见问题及解决方案等。"
+#                     
+#                     try:
+#                         # 初始化OpenAI客户端
+#                         client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+#                         
+#                         # 构建消息历史
+#                         messages = [
+#                             {"role": "system", "content": system_prompt}
+#                         ]
+#                         
+#                         # 添加历史聊天记录
+#                         for msg in st.session_state.chat_history:
+#                             messages.append({"role": msg["role"], "content": msg["content"]})
+#                         
+#                         # 调用AI模型
+#                         full_response = ""
+#                         
+#                         # 使用流式输出
+#                         for chunk in client.chat.completions.create(
+#                             model="qwen-plus",
+#                             messages=messages,
+#                             stream=True
+#                         ):
+#                             if chunk.choices[0].delta.content:
+#                                 full_response += chunk.choices[0].delta.content
+#                                 response_placeholder.markdown(full_response)
+#                         
+#                         # 添加AI响应到聊天历史
+#                         st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+#                     except Exception as e:
+#                         # 如果API调用失败，使用默认响应
+#                         error_response = f"抱歉，AI回答时出现错误：{str(e)}\n\n请检查API Key是否正确设置，或者稍后再试。"
+#                         response_placeholder.markdown(error_response)
+#                         st.session_state.chat_history.append({"role": "assistant", "content": error_response})
+#     
+#     # 操作按钮区域
+#     button_col1, button_col2 = st.columns(2)
+#     with button_col1:
+#         if st.button("🗑️ 清除聊天历史", key="clear_chat"):
+#             st.session_state.chat_history = []
+#             # 强制页面刷新
+#             st.rerun()
+#     with button_col2:
+#         # 导出对话为PDF
+#         if st.button("📄 导出对话", key="export_chat"):
+#             if st.session_state.chat_history:
+#                 # 生成PDF内容
+#                 pdf_content = "# 晶体生长实验助手 - 知识问答记录\n\n"
+#                 pdf_content += f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+#                 
+#                 for i, message in enumerate(st.session_state.chat_history, 1):
+#                     role = "用户" if message["role"] == "user" else "AI"
+#                     pdf_content += f"## {i}. {role}\n"
+#                     pdf_content += f"{message['content']}\n\n"
+#                 
+#                 # 提供下载
+#                 st.download_button(
+#                     label="⬇️ 下载PDF",
+#                     data=pdf_content,
+#                     file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+#                     mime="text/plain"
+#                 )
+#             else:
+#                 st.info("没有聊天记录可导出")
 
 
 
