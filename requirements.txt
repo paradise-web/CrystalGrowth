@@ -10,12 +10,24 @@ pymatgen>=2024.0.0
 
 # 可选：如果不想使用 pymatgen，可以使用 pubchempy
 # pubchempy>=1.0.4
-streamlit
+
 tiktoken
 
 # 外部文献 RAG 依赖（可选，用于增强专业性）
-chromadb>=0.4.0
 pdfplumber>=0.10.0
 tqdm>=4.65.0
 
 # sk-eec9cb28d6804d18aaddcdb4bdd9a1b9
+
+streamlit==1.38.0
+# 向量库（使用较新版本以避免 protobuf 兼容性问题）
+chromadb==0.4.23
+# protobuf 版本需要与 chromadb 兼容
+protobuf==3.20.3
+# 简化 opentelemetry 依赖，只保留必要的包
+opentelemetry-api==1.10.0
+opentelemetry-sdk==1.10.0
+opentelemetry-exporter-otlp-proto-http==1.10.0
+# gRPC 依赖
+grpcio==1.48.2
+grpcio-status==1.48.2
