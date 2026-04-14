@@ -34,205 +34,102 @@ def add_custom_css():
     <style>
         /* 整体样式 */
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            background-attachment: fixed;
+            background-color: #f0f2f6;
         }
         
         /* 标题样式 */
         .main-title {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: bold;
             color: #2c3e50;
             text-align: center;
             margin-bottom: 2rem;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.1);
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
         }
         
         /* 卡片样式 */
         .card {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-            padding: 25px;
-            margin-bottom: 25px;
-            transition: transform 0.4s ease, box-shadow 0.4s ease;
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         
         .card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.3);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
         
         /* 悬浮框样式 */
         .float-box {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
-            margin: 30px 0;
-            animation: glow 3s ease-in-out infinite alternate;
-        }
-        
-        @keyframes glow {
-            from { box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
-            to { box-shadow: 0 15px 30px rgba(102, 126, 234, 0.6); }
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            margin: 20px 0;
         }
         
         /* 按钮样式 */
         .stButton > button {
-            border-radius: 12px;
-            padding: 12px 24px;
+            border-radius: 8px;
+            padding: 10px 20px;
             font-weight: bold;
             transition: all 0.3s ease;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
         }
         
         .stButton > button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+            transform: scale(1.05);
         }
         
         /* 标签页样式 */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 10px;
         }
         
         .stTabs [data-baseweb="tab"] {
-            height: 52px;
-            padding: 0 30px;
-            border-radius: 12px 12px 0 0;
+            height: 48px;
+            padding: 0 24px;
+            border-radius: 8px 8px 0 0;
             font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
         }
         
         .stTabs [data-baseweb="tab"][aria-selected="true"] {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #667eea;
             color: white;
-            transform: translateY(-2px);
         }
         
         /* 进度条样式 */
         .stProgress > div > div {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background-color: #667eea;
         }
         
         /* 卡片标题样式 */
         .card-title {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: #2c3e50;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
         }
         
         /* 流程图样式 */
         .flow-step {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 15px 0;
-            border-left: 6px solid #667eea;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-        }
-        
-        .flow-step:hover {
-            transform: translateX(10px);
-            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
         }
         
         /* 统计图表容器 */
         .chart-container {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-            padding: 25px;
-            margin-bottom: 25px;
-        }
-        
-        /* 网格布局 */
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
-        }
-        
-        /* 特色卡片 */
-        .feature-card {
-            background: white;
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            text-align: center;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.3);
-        }
-        
-        /* 特色图标 */
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        /* 轮播容器 */
-        .carousel-container {
-            position: relative;
-            overflow: hidden;
-            border-radius: 16px;
-            margin: 30px 0;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        
-        /* 粒子背景 */
-        #particles-js {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: -1;
-        }
-        
-        /* 响应式调整 */
-        @media (max-width: 768px) {
-            .main-title {
-                font-size: 2.2rem;
-            }
-            
-            .card {
-                padding: 20px;
-            }
-            
-            .float-box {
-                padding: 25px;
-            }
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -309,87 +206,7 @@ max_iter = 3
 
 # 首页
 with tab1:
-    # 添加粒子背景
-    st.markdown("""
-    <div id="particles-js"></div>
-    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-    <script>
-        particlesJS('particles-js', {
-            "particles": {
-                "number": {
-                    "value": 80,
-                    "density": {
-                        "enable": true,
-                        "value_area": 800
-                    }
-                },
-                "color": {
-                    "value": "#667eea"
-                },
-                "shape": {
-                    "type": "circle",
-                    "stroke": {
-                        "width": 0,
-                        "color": "#000000"
-                    }
-                },
-                "opacity": {
-                    "value": 0.5,
-                    "random": false
-                },
-                "size": {
-                    "value": 3,
-                    "random": true
-                },
-                "line_linked": {
-                    "enable": true,
-                    "distance": 150,
-                    "color": "#667eea",
-                    "opacity": 0.4,
-                    "width": 1
-                },
-                "move": {
-                    "enable": true,
-                    "speed": 1,
-                    "direction": "none",
-                    "random": false,
-                    "straight": false,
-                    "out_mode": "out",
-                    "bounce": false
-                }
-            },
-            "interactivity": {
-                "detect_on": "canvas",
-                "events": {
-                    "onhover": {
-                        "enable": true,
-                        "mode": "grab"
-                    },
-                    "onclick": {
-                        "enable": true,
-                        "mode": "push"
-                    },
-                    "resize": true
-                },
-                "modes": {
-                    "grab": {
-                        "distance": 140,
-                        "line_linked": {
-                            "opacity": 1
-                        }
-                    },
-                    "push": {
-                        "particles_nb": 4
-                    }
-                }
-            },
-            "retina_detect": true
-        });
-    </script>
-    """, unsafe_allow_html=True)
-    
-    # 主标题
-    st.markdown("<h1 class='main-title'>🔍 晶体生长实验记录助手</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 class='main-title'>🔍 晶体生长实验记录助手</h3>", unsafe_allow_html=True)
     
     # 悬浮框：API Key 和最大修正次数设置
     with st.container():
@@ -412,198 +229,73 @@ with tab1:
         
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # 项目亮点轮播展示
+    # 项目介绍
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 class='card-title'>✨ 项目亮点</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='card-title'>📋 项目简介</h2>", unsafe_allow_html=True)
+    st.markdown("""
+    这是一个基于 Multi-Agent 的实验记录数字化工具，专为晶体生长实验设计。通过先进的AI技术，将手写实验记录转化为结构化的数字数据，提高实验数据管理的效率和准确性。
+    """)
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    # 使用columns创建轮播效果
+    # 核心功能
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.markdown("<h2 class='card-title'>✨ 核心功能</h2>", unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>🤖</div>", unsafe_allow_html=True)
-        st.subheader("智能感知")
-        st.write("使用先进的 Qwen-VL 模型，精准识别手写实验记录，自动提取关键数据。")
+        st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+        st.subheader("🤖 视觉感知")
+        st.write("使用 Qwen-VL 模型分析实验记录图片，自动提取实验数据。")
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>🔬</div>", unsafe_allow_html=True)
-        st.subheader("化学审核")
-        st.write("专业的 Qwen-Plus 模型审核提取的数据，确保化学合理性和准确性。")
+        st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+        st.subheader("🔬 化学审核")
+        st.write("Qwen-Plus 模型审核提取的数据，确保化学合理性和准确性。")
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>📝</div>", unsafe_allow_html=True)
-        st.subheader("智能格式化")
-        st.write("Pymatgen 库将数据转换为标准化的 Markdown 报告，结构清晰易读。")
+        st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+        st.subheader("📝 数据格式化")
+        st.write("Pymatgen 库将数据转换为标准化的 Markdown 报告。")
         st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # 项目介绍
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 class='card-title'>� 项目简介</h2>", unsafe_allow_html=True)
-    st.markdown("""
-    这是一个基于 Multi-Agent 的实验记录数字化工具，专为晶体生长实验设计。通过先进的AI技术，将手写实验记录转化为结构化的数字数据，提高实验数据管理的效率和准确性。
-    
-    我们的系统集成了多种先进技术，包括视觉感知、化学审核和数据格式化，为晶体生长实验提供全方位的数字化解决方案。
-    """)
     st.markdown("</div>", unsafe_allow_html=True)
     
     # 工作流程
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("<h2 class='card-title'>🔄 工作流程</h2>", unsafe_allow_html=True)
     
-    # 流程步骤
-    steps = [
-        {
-            "icon": "📤",
-            "title": "1. 上传实验记录",
-            "description": "上传手写实验记录图片，支持 JPG、PNG 格式。"
-        },
-        {
-            "icon": "🤖",
-            "title": "2. AI 数据分析",
-            "description": "视觉感知模型提取数据，化学审核模型验证合理性。"
-        },
-        {
-            "icon": "👤",
-            "title": "3. 人工审核",
-            "description": "用户审核提取结果，可提供反馈进行修正。"
-        },
-        {
-            "icon": "📄",
-            "title": "4. 生成报告",
-            "description": "系统生成标准化的 Markdown 实验报告。"
-        }
-    ]
-    
-    # 创建流程步骤布局
-    for step in steps:
-        st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
-        st.subheader(f"{step['icon']} {step['title']}")
-        st.write(step['description'])
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+    st.subheader("1. 上传实验记录")
+    st.write("上传手写实验记录图片，支持 JPG、PNG 格式。")
     st.markdown("</div>", unsafe_allow_html=True)
     
-    # 技术架构
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 class='card-title'>🏗️ 技术架构</h2>", unsafe_allow_html=True)
+    st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+    st.subheader("2. AI 数据分析")
+    st.write("视觉感知模型提取数据，化学审核模型验证合理性。")
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    # 使用 columns 创建架构图
-    col1, col2, col3 = st.columns(3)
+    st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+    st.subheader("3. 人工审核")
+    st.write("用户审核提取结果，可提供反馈进行修正。")
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    with col1:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>🖼️</div>", unsafe_allow_html=True)
-        st.subheader("视觉感知层")
-        st.write("Qwen-VL 模型分析实验记录图片，提取结构化数据。")
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>🧪</div>", unsafe_allow_html=True)
-        st.subheader("化学审核层")
-        st.write("Qwen-Plus 模型审核提取的数据，确保化学合理性。")
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='feature-icon'>📊</div>", unsafe_allow_html=True)
-        st.subheader("数据格式化层")
-        st.write("Pymatgen 库将数据转换为标准化的 Markdown 报告。")
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
+    st.subheader("4. 生成报告")
+    st.write("系统生成标准化的 Markdown 实验报告。")
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
     
     # 技术特点
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("<h2 class='card-title'>🚀 技术特点</h2>", unsafe_allow_html=True)
     
-    features = [
-        {"icon": "👥", "title": "多智能体协作", "description": "三个专业智能体协同工作，确保数据准确性"},
-        {"icon": "🔄", "title": "自修正机制", "description": "发现问题自动修正，提高数据提取质量"},
-        {"icon": "🧪", "title": "化学专业审核", "description": "确保实验数据的化学合理性"},
-        {"icon": "📄", "title": "标准化报告", "description": "生成结构清晰的 Markdown 报告"},
-        {"icon": "📚", "title": "历史记录管理", "description": "完整的实验记录存储和查询功能"},
-        {"icon": "⚡", "title": "实时处理", "description": "流式处理，快速响应用户操作"}
-    ]
-    
-    # 创建网格布局
-    st.markdown("<div class='grid-container'>", unsafe_allow_html=True)
-    for feature in features:
-        st.markdown(f"""
-        <div class='feature-card'>
-            <div class='feature-icon'>{feature['icon']}</div>
-            <h3>{feature['title']}</h3>
-            <p>{feature['description']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # 实时数据统计
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 class='card-title'>📊 系统统计</h2>", unsafe_allow_html=True)
-    
-    # 模拟统计数据
-    try:
-        db = get_db()
-        stats = db.get_statistics()
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("总记录数", stats['total_count'])
-        with col2:
-            st.metric("通过率", f"{stats['pass_rate']}%")
-        with col3:
-            st.metric("最近7天", stats['recent_count'])
-    except:
-        # 模拟数据
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("总记录数", "128")
-        with col2:
-            st.metric("通过率", "92%")
-        with col3:
-            st.metric("最近7天", "24")
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # 用户反馈
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<h2 class='card-title'>🌟 用户反馈</h2>", unsafe_allow_html=True)
-    
-    testimonials = [
-        {
-            "name": "张教授",
-            "role": "材料科学研究员",
-            "content": "这个工具大大提高了我们的实验记录效率，AI 提取的数据非常准确，节省了我们大量的时间。",
-            "rating": 5
-        },
-        {
-            "name": "李博士",
-            "role": "晶体生长专家",
-            "content": "化学审核功能非常强大，能够发现我们忽略的问题，是一个非常实用的工具。",
-            "rating": 4
-        },
-        {
-            "name": "王工程师",
-            "role": "实验室技术员",
-            "content": "界面美观，操作简单，生成的报告格式规范，非常适合我们的实验室使用。",
-            "rating": 5
-        }
-    ]
-    
-    # 创建反馈卡片
-    col1, col2, col3 = st.columns(3)
-    for i, testimonial in enumerate(testimonials):
-        with [col1, col2, col3][i % 3]:
-            st.markdown("<div class='feature-card'>", unsafe_allow_html=True)
-            st.write(f"⭐" * testimonial['rating'])
-            st.write(testimonial['content'])
-            st.write(f"**{testimonial['name']}**")
-            st.caption(testimonial['role'])
-            st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("- **多智能体协作**: 三个专业智能体协同工作，确保数据准确性")
+    st.markdown("- **自修正机制**: 发现问题自动修正，提高数据提取质量")
+    st.markdown("- **化学专业审核**: 确保实验数据的化学合理性")
+    st.markdown("- **标准化报告**: 生成结构清晰的 Markdown 报告")
+    st.markdown("- **历史记录管理**: 完整的实验记录存储和查询功能")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # 文件上传页
