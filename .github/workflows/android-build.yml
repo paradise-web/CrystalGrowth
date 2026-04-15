@@ -11,24 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    container:
+      image: cirrusci/flutter:3.7.12
+
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install required tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y curl unzip wget
-
-    - name: Download and install Flutter
-      run: |
-        wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.12-stable.tar.xz
-        tar -xf flutter_linux_3.7.12-stable.tar.xz
-        echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-
-    - name: Verify Flutter installation
-      run: |
-        flutter --version
-        flutter doctor -v
+    - name: Flutter version
+      run: flutter --version
 
     - name: Install dependencies
       run: flutter pub get
