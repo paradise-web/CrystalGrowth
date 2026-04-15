@@ -11,17 +11,30 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
+# 获取应用数据目录
+def get_data_dir():
+    if os.environ.get('ANDROID_DATA'):
+        # Android环境
+        return os.path.join(os.environ['ANDROID_DATA'], 'exp_dec')
+    else:
+        # 桌面环境
+        return str(Path.cwd())
+
 
 class ExperimentDB:
     """实验记录数据库管理类"""
     
-    def __init__(self, db_path: str = "experiments.db"):
+    def __init__(self, db_path: str = None):
         """
         初始化数据库连接
         
         Args:
             db_path: 数据库文件路径
         """
+        if db_path is None:
+            data_dir = get_data_dir()
+            os.makedirs(data_dir, exist_ok=True)
+            db_path = os.path.join(data_dir, "experiments.db")
         self.db_path = db_path
         self._init_database()
     
