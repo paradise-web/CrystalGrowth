@@ -9,45 +9,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Print environment info
-      run: |
-        echo "Current directory: $(pwd)"
-        echo "System info: $(uname -a)"
-        echo "Node version: $(node --version)"
-        echo "npm version: $(npm --version)"
-
-    - name: Install required dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa
-
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.7.12'
-        channel: 'stable'
-
-    - name: Verify Flutter installation
-      run: |
-        echo "Flutter version:"
-        flutter --version
-        echo "Flutter doctor:"
-        flutter doctor -v
+        flutter-version: '3.10.0'
 
     - name: Get dependencies
-      run: |
-        echo "Getting dependencies..."
-        flutter pub get
+      run: flutter pub get
 
     - name: Build APK
-      run: |
-        echo "Building APK..."
-        flutter build apk --debug
+      run: flutter build apk --debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
