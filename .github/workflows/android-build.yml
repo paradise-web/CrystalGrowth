@@ -21,14 +21,14 @@ jobs:
 
     - name: Get dependencies
       run: |
-        flutter pub get --verbose > pub-get.log 2>&1 || true
+        flutter pub get --verbose > pub-get.log 2>&1
         echo "=== Dependency resolution complete ==="
         cat pub-get.log
 
     - name: Build APK
       run: |
-        flutter doctor -v > doctor.log 2>&1 || true
-        flutter build apk --debug --verbose > build.log 2>&1 || true
+        flutter doctor -v > doctor.log 2>&1
+        flutter build apk --debug --verbose > build.log 2>&1
         echo "=== Build complete ==="
         cat build.log
 
