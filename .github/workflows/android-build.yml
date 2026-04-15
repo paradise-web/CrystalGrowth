@@ -11,11 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    container:
-      image: cirrusci/flutter:3.7.12
-
     steps:
     - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa
+
+    - name: Download Flutter
+      run: |
+        wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.7.12-stable.tar.xz
+        tar -xf flutter_linux_3.7.12-stable.tar.xz
+        echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
 
     - name: Flutter version
       run: flutter --version
