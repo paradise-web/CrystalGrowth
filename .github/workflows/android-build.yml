@@ -13,11 +13,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
+    - name: Setup Java
+      uses: actions/setup-java@v4
       with:
-        flutter-version: '3.13.0'
-        channel: 'stable'
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Download Flutter
+      run: |
+        wget -O flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.13.0-stable.tar.xz
+        tar -xf flutter.tar.xz
+        echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+
+    - name: Flutter version
+      run: flutter --version
 
     - name: Install dependencies
       run: flutter pub get
