@@ -1,0 +1,31 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ pack_android2 ]
+  pull_request:
+    branches: [ pack_android2 ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.0'
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      run: flutter build apk --release
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: crystal-growth-assistant-apk
+        path: build/app/outputs/flutter-apk/app-release.apk
