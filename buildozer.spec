@@ -36,7 +36,7 @@ version = 1.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,kivymd,pillow,requests,pymatgen,langchain,langchain-openai,langgraph,openai,tiktoken
+requirements = python3,kivy,kivymd,pillow,requests
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -103,7 +103,7 @@ android.minapi = 21
 #android.sdk = 24
 
 # (str) Android NDK version to use
-android.ndk = 25.1.8937393
+android.ndk = 25b
 
 # (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
 android.ndk_api = 21
