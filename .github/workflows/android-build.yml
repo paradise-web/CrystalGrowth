@@ -16,7 +16,7 @@ jobs:
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.0'
+        flutter-version: 'latest'
 
     - name: Flutter doctor
       run: flutter doctor -v
@@ -25,11 +25,11 @@ jobs:
       run: flutter pub get
 
     - name: Build APK
-      run: flutter build apk --debug
+      run: flutter build apk
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: crystal-growth-assistant-apk
-        path: build/app/outputs/flutter-apk/app-debug.apk
+        path: build/app/outputs/flutter-apk/app-release.apk
         retention-days: 30
