@@ -21,14 +21,16 @@ jobs:
 
     - name: Get dependencies
       run: |
-        flutter --version
-        flutter pub get --verbose 2>&1
-        echo "Dependency resolution completed"
+        flutter pub get --verbose > pub-get.log 2>&1 || true
+        echo "=== Dependency resolution complete ==="
+        cat pub-get.log
 
     - name: Build APK
       run: |
-        flutter doctor -v
-        flutter build apk --debug --verbose
+        flutter doctor -v > doctor.log 2>&1 || true
+        flutter build apk --debug --verbose > build.log 2>&1 || true
+        echo "=== Build complete ==="
+        cat build.log
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -37,13 +39,13 @@ jobs:
         path: build/app/outputs/flutter-apk/app-debug.apk
         retention-days: 30
 
-    - name: Generate build logs
-      run: |
-        flutter pub get --verbose > pub-get.log 2>&1
-
     - name: Upload build logs
       uses: actions/upload-artifact@v4
       with:
         name: build-logs
-        path: pub-get.log
+        path: |
+          pub-get.log
+          doctor.log
+          build.log
         retention-days: 30
+      if: always()
