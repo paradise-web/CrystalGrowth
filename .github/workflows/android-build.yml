@@ -36,3 +36,14 @@ jobs:
         name: crystal-growth-assistant-apk
         path: build/app/outputs/flutter-apk/app-debug.apk
         retention-days: 30
+
+    - name: Generate build logs
+      run: |
+        flutter pub get --verbose > pub-get.log 2>&1
+
+    - name: Upload build logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: pub-get.log
+        retention-days: 30
