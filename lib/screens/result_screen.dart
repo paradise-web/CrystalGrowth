@@ -181,8 +181,9 @@ class ResultScreen extends StatelessWidget {
                     '${resultItem['type']}: ${resultItem['label'] ?? ''}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  if (resultItem['description'])
+                  if (resultItem.containsKey('description') && resultItem['description'] != null)
                     Text(resultItem['description']),
+
                 ],
               ),
             );
