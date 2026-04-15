@@ -22,7 +22,8 @@ jobs:
     - name: Get dependencies
       run: |
         flutter --version
-        flutter pub get --verbose
+        flutter pub get --verbose 2>&1
+        echo "Dependency resolution completed"
 
     - name: Build APK
       run: |
