@@ -9,25 +9,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.3.10'
-        channel: 'stable'
+    - name: Print environment info
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "System info: $(uname -a)"
+        echo "Node version: $(node --version)"
+        echo "npm version: $(npm --version)"
 
-    - name: Flutter doctor
-      run: flutter doctor -v
+    - name: Install required dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa
+
+    - name: Download and install Flutter
+      run: |
+        echo "Downloading Flutter..."
+        wget -v https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.3.10-stable.tar.xz
+        echo "Extracting Flutter..."
+        tar -xf flutter_linux_3.3.10-stable.tar.xz
+        echo "Adding Flutter to PATH..."
+        echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+        echo "Flutter path added: $GITHUB_WORKSPACE/flutter/bin"
+
+    - name: Verify Flutter installation
+      run: |
+        echo "Flutter version:"
+        flutter --version
+        echo "Flutter doctor:"
+        flutter doctor -v
 
     - name: Get dependencies
-      run: flutter pub get
+      run: |
+        echo "Getting dependencies..."
+        flutter pub get
 
     - name: Build APK
-      run: flutter build apk --debug
+      run: |
+        echo "Building APK..."
+        flutter build apk --debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
