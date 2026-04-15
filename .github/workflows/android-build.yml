@@ -19,11 +19,12 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Download Flutter
-      run: |
-        wget -O flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.13.0-stable.tar.xz
-        tar -xf flutter.tar.xz
-        echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.10.0'
+        channel: 'stable'
+        cache: true
 
     - name: Flutter version
       run: flutter --version
@@ -32,11 +33,11 @@ jobs:
       run: flutter pub get
 
     - name: Build APK
-      run: flutter build apk
+      run: flutter build apk --debug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: crystal-growth-assistant-apk
-        path: build/app/outputs/flutter-apk/app-release.apk
+        path: build/app/outputs/flutter-apk/app-debug.apk
         retention-days: 30
