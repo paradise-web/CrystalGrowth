@@ -1314,14 +1314,14 @@ with tab3:
                             )
                         st.markdown("</div>", unsafe_allow_html=True)
                     
-                    # 原始数据
-                    with st.expander("🔍 查看原始 JSON 数据"):
-                        if exp.get('raw_json'):
-                            try:
-                                raw_data = json.loads(exp['raw_json'].replace("```json", "").replace("```", "").strip())
-                                st.json(raw_data)
-                            except:
-                                st.code(exp['raw_json'])
+                    # 原始数据（直接显示，不再嵌套 expander）
+                    st.markdown("#### 🔍 原始 JSON 数据")
+                    if exp.get('raw_json'):
+                        try:
+                            raw_data = json.loads(exp['raw_json'].replace("```json", "").replace("```", "").strip())
+                            st.json(raw_data)
+                        except:
+                            st.code(exp['raw_json'])
                     
                     # 关闭按钮
                     col_close = st.columns([1, 2, 1])[1]
