@@ -524,7 +524,8 @@ def perceiver_node(state: AgentState) -> AgentState:
             **state,
             "raw_json": raw_json,
             "needs_correction": False,
-            "correction_hints": "",  # 清除修正提示
+            # 保留修正提示，以便后续节点（reviewer、formatter）也能看到用户反馈
+            "correction_hints": state.get("correction_hints", ""),
             "iteration_count": state.get("iteration_count", 0) + 1
         }
     except Exception as e:

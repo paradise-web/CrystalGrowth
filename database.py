@@ -115,6 +115,28 @@ class ExperimentDB:
         """计算图片的哈希值（用于去重）"""
         return hashlib.sha256(image_bytes).hexdigest()
     
+    def _check_existing_by_hash(self, image_hash: str) -> Optional[Dict[str, Any]]:
+        """
+        根据图片哈希值检查是否已存在记录
+        
+        Args:
+            image_hash: 图片的 SHA256 哈希值
+            
+        Returns:
+            存在的记录字典，如果不存在则返回 None
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM experiments WHERE image_hash = ?", (image_hash,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return self._row_to_dict(row)
+        return None
+    
     def save_experiment(
         self,
         image_filename: str,
@@ -130,7 +152,8 @@ class ExperimentDB:
         review_issues: Optional[List[Dict]] = None,
         human_feedback: Optional[str] = None,
         review_passed_override: Optional[bool] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        force_new: bool = False  # 新增参数：强制插入新记录
     ) -> int:
         """
         保存实验记录到数据库
@@ -138,129 +161,215 @@ class ExperimentDB:
         Returns:
             实验记录的ID
         """
-        image_hash = self._calculate_image_hash(image_bytes)
-        
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # 检查是否已存在相同图片的记录
-        cursor.execute("SELECT id FROM experiments WHERE image_hash = ?", (image_hash,))
-        existing = cursor.fetchone()
-        
-        if existing:
-            # 更新现有记录
-            experiment_id = existing[0]
-            update_fields = []
-            update_values = []
+        try:
+            print(f"🔍 [DB DEBUG] save_experiment 开始")
+            print(f"  - image_filename: {image_filename}")
+            print(f"  - image_bytes 长度: {len(image_bytes) if image_bytes else 0}")
+            print(f"  - image_path: {image_path}")
+            print(f"  - review_passed: {review_passed}")
+            print(f"  - review_passed_override: {review_passed_override}")
             
-            # 只更新非空且有效的字段（避免用空值覆盖已有数据）
-            if image_path is not None and image_path != "":
-                update_fields.append("image_path = ?")
-                update_values.append(image_path)
-            if image_reference_path is not None and image_reference_path != "":
-                update_fields.append("image_reference_path = ?")
-                update_values.append(image_reference_path)
-            # JSON 字段：只更新非空字符串（空字符串表示未处理，不应覆盖）
-            if raw_json is not None and raw_json != "":
-                update_fields.append("raw_json = ?")
-                update_values.append(raw_json)
-            if reviewed_json is not None and reviewed_json != "":
-                update_fields.append("reviewed_json = ?")
-                update_values.append(reviewed_json)
-            if formatted_markdown is not None and formatted_markdown != "":
-                update_fields.append("formatted_markdown = ?")
-                update_values.append(formatted_markdown)
-            # 数值字段：总是更新（即使为0也是有效值）
-            if iteration_count is not None:
-                update_fields.append("iteration_count = ?")
-                update_values.append(iteration_count)
-            if max_iterations is not None:
-                update_fields.append("max_iterations = ?")
-                update_values.append(max_iterations)
-            if review_passed is not None:
-                update_fields.append("review_passed = ?")
-                update_values.append(1 if review_passed else 0)
-            # review_issues: 空列表也是有效值，需要更新
-            if review_issues is not None:
-                update_fields.append("review_issues = ?")
-                update_values.append(json.dumps(review_issues, ensure_ascii=False))
-            # human_feedback: 空字符串表示无反馈，不应覆盖已有反馈
-            if human_feedback is not None and human_feedback != "":
-                update_fields.append("human_feedback = ?")
-                update_values.append(human_feedback)
-            if review_passed_override is not None:
-                update_fields.append("review_passed_override = ?")
-                update_values.append(1 if review_passed_override else 0)
-            if notes is not None and notes != "":
-                update_fields.append("notes = ?")
-                update_values.append(notes)
+            # 如果强制插入新记录，生成唯一的哈希值（加入时间戳）
+            if force_new:
+                # 加入时间戳确保唯一性
+                timestamp_bytes = str(datetime.now()).encode('utf-8')
+                combined_bytes = image_bytes + timestamp_bytes
+                image_hash = hashlib.sha256(combined_bytes).hexdigest()
+            else:
+                image_hash = self._calculate_image_hash(image_bytes)
+            print(f"  - image_hash: {image_hash}")
             
-            # 更新关键参数文本（如果 JSON 数据有更新）
-            if reviewed_json is not None and reviewed_json != "":
-                try:
-                    reviewed_data = json.loads(reviewed_json)
-                    key_params_text = self._extract_key_params_text(reviewed_data)
-                    if key_params_text:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            print(f"  ✅ 数据库连接成功")
+            
+            # 检查是否已存在相同图片的记录
+            cursor.execute("SELECT id FROM experiments WHERE image_hash = ?", (image_hash,))
+            existing = cursor.fetchone()
+            print(f"  - 已存在记录: {'是' if existing else '否'}")
+            if existing:
+                print(f"    - 现有记录ID: {existing[0]}")
+            print(f"  - force_new: {force_new}")
+            
+            if existing and not force_new:
+                # 更新现有记录（只有在不是强制插入新记录时）
+                experiment_id = existing[0]
+                update_fields = []
+                update_values = []
+                
+                # 更新字段：允许空字符串（空字符串表示需要重新处理）
+                if image_path is not None:
+                    update_fields.append("image_path = ?")
+                    update_values.append(image_path)
+                if image_reference_path is not None:
+                    update_fields.append("image_reference_path = ?")
+                    update_values.append(image_reference_path)
+                # JSON 字段：空字符串也是有效值（表示需要重新提取）
+                if raw_json is not None:
+                    update_fields.append("raw_json = ?")
+                    update_values.append(raw_json)
+                if reviewed_json is not None:
+                    update_fields.append("reviewed_json = ?")
+                    update_values.append(reviewed_json)
+                if formatted_markdown is not None:
+                    update_fields.append("formatted_markdown = ?")
+                    update_values.append(formatted_markdown)
+                # 数值字段：总是更新（即使为0也是有效值）
+                if iteration_count is not None:
+                    update_fields.append("iteration_count = ?")
+                    update_values.append(iteration_count)
+                if max_iterations is not None:
+                    update_fields.append("max_iterations = ?")
+                    update_values.append(max_iterations)
+                if review_passed is not None:
+                    update_fields.append("review_passed = ?")
+                    update_values.append(1 if review_passed else 0)
+                # review_issues: 空列表也是有效值，需要更新
+                if review_issues is not None:
+                    update_fields.append("review_issues = ?")
+                    update_values.append(json.dumps(review_issues, ensure_ascii=False))
+                # human_feedback: 允许更新为空字符串（表示清除反馈）
+                if human_feedback is not None:
+                    update_fields.append("human_feedback = ?")
+                    update_values.append(human_feedback)
+                if review_passed_override is not None:
+                    update_fields.append("review_passed_override = ?")
+                    update_values.append(1 if review_passed_override else 0)
+                if notes is not None:
+                    update_fields.append("notes = ?")
+                    update_values.append(notes)
+                
+                # 更新关键参数文本（根据最新的 JSON 数据）
+                if reviewed_json is not None:
+                    try:
+                        reviewed_data = json.loads(reviewed_json)
+                        key_params_text = self._extract_key_params_text(reviewed_data)
                         update_fields.append("key_params_text = ?")
                         update_values.append(key_params_text)
-                except:
-                    pass
-            elif raw_json is not None and raw_json != "":
-                try:
-                    raw_data = json.loads(raw_json)
-                    key_params_text = self._extract_key_params_text(raw_data)
-                    if key_params_text:
+                    except Exception as e:
+                        print(f"    ⚠️ 解析 reviewed_json 失败: {e}")
+                elif raw_json is not None:
+                    try:
+                        raw_data = json.loads(raw_json)
+                        key_params_text = self._extract_key_params_text(raw_data)
                         update_fields.append("key_params_text = ?")
                         update_values.append(key_params_text)
-                except:
-                    pass
-            
-            # 总是更新 updated_at 时间戳
-            update_fields.append("updated_at = CURRENT_TIMESTAMP")
-            update_values.append(experiment_id)
-            
-            if len(update_fields) > 1:  # 至少有 updated_at 和一个其他字段
-                query = f"UPDATE experiments SET {', '.join(update_fields)} WHERE id = ?"
-                cursor.execute(query, update_values)
-        else:
-            # 提取关键参数文本（用于增强搜索）
-            key_params_text = ""
-            if reviewed_json:
-                try:
-                    reviewed_data = json.loads(reviewed_json)
-                    key_params_text = self._extract_key_params_text(reviewed_data)
-                except:
-                    pass
-            if not key_params_text and raw_json:
-                try:
-                    raw_data = json.loads(raw_json)
-                    key_params_text = self._extract_key_params_text(raw_data)
-                except:
-                    pass
-            
-            # 插入新记录
-            cursor.execute("""
-                INSERT INTO experiments (
+                    except Exception as e:
+                        print(f"    ⚠️ 解析 raw_json 失败: {e}")
+                
+                # 总是更新 updated_at 时间戳
+                update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                update_values.append(experiment_id)
+                
+                print(f"  - 更新字段数: {len(update_fields)}")
+                print(f"  - 更新值数: {len(update_values)}")
+                
+                if len(update_fields) > 0:  # 至少有一个字段（至少有 updated_at）
+                    query = f"UPDATE experiments SET {', '.join(update_fields)} WHERE id = ?"
+                    print(f"    - SQL: {query[:100]}...")
+                    cursor.execute(query, update_values)
+                    print(f"    ✅ UPDATE 执行成功，影响行数: {cursor.rowcount}")
+            else:
+                # 提取关键参数文本（用于增强搜索）
+                key_params_text = ""
+                if reviewed_json:
+                    try:
+                        reviewed_data = json.loads(reviewed_json)
+                        key_params_text = self._extract_key_params_text(reviewed_data)
+                    except Exception as e:
+                        print(f"    ⚠️ 解析 reviewed_json 失败: {e}")
+                if not key_params_text and raw_json:
+                    try:
+                        raw_data = json.loads(raw_json)
+                        key_params_text = self._extract_key_params_text(raw_data)
+                    except Exception as e:
+                        print(f"    ⚠️ 解析 raw_json 失败: {e}")
+                
+                # 插入新记录
+                print(f"    📥 执行 INSERT...")
+                cursor.execute("""
+                    INSERT INTO experiments (
+                        image_filename, image_hash, image_path, image_reference_path,
+                        raw_json, reviewed_json, formatted_markdown,
+                        iteration_count, max_iterations, review_passed, review_issues,
+                        human_feedback, review_passed_override, notes, key_params_text
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
                     image_filename, image_hash, image_path, image_reference_path,
                     raw_json, reviewed_json, formatted_markdown,
-                    iteration_count, max_iterations, review_passed, review_issues,
-                    human_feedback, review_passed_override, notes, key_params_text
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                image_filename, image_hash, image_path, image_reference_path,
-                raw_json, reviewed_json, formatted_markdown,
-                iteration_count, max_iterations, 1 if review_passed else 0,
-                json.dumps(review_issues, ensure_ascii=False) if review_issues else None,
-                human_feedback,
-                1 if review_passed_override else 0 if review_passed_override is not None else None,
-                notes, key_params_text
-            ))
-            experiment_id = cursor.lastrowid
+                    iteration_count, max_iterations, 1 if review_passed else 0,
+                    json.dumps(review_issues, ensure_ascii=False) if review_issues else None,
+                    human_feedback,
+                    1 if review_passed_override else 0 if review_passed_override is not None else None,
+                    notes, key_params_text
+                ))
+                experiment_id = cursor.lastrowid
+                print(f"    ✅ INSERT 执行成功，新记录ID: {experiment_id}")
+            
+            conn.commit()
+            print(f"  ✅ 事务提交成功")
+            conn.close()
+            
+            print(f"✅ [DB DEBUG] save_experiment 完成，experiment_id={experiment_id}")
+            return experiment_id
+        except Exception as e:
+            print(f"❌ [DB DEBUG] save_experiment 失败: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"   详细错误: {traceback.format_exc()}")
+            raise
+    
+    def _extract_key_params_text(self, data: dict) -> str:
+        """
+        从实验数据中提取关键参数文本（用于增强搜索）
         
-        conn.commit()
-        conn.close()
+        Args:
+            data: 实验数据字典
         
-        return experiment_id
+        Returns:
+            关键参数文本字符串
+        """
+        params = []
+        
+        for exp in data.get("experiments", []):
+            # 提取方法
+            meta = exp.get("meta", {})
+            if isinstance(meta, dict) and meta.get("method"):
+                params.append(meta.get("method"))
+            
+            # 提取温度参数
+            process = exp.get("process", {})
+            if isinstance(process, dict):
+                # 从 dynamic_params 提取
+                if process.get("dynamic_params"):
+                    for param in process.get("dynamic_params", []):
+                        if isinstance(param, dict):
+                            name = param.get("name", "")
+                            value = param.get("value", "")
+                            if name and value:
+                                params.append(f"{name}: {value}")
+                # 向后兼容：从固定参数提取
+                if process.get("high_temp"):
+                    params.append(f"高温: {process.get('high_temp')}")
+                if process.get("low_temp"):
+                    params.append(f"低温: {process.get('low_temp')}")
+            
+            # 提取配料
+            ingredients = exp.get("ingredients", {})
+            if isinstance(ingredients, dict):
+                precursors = ingredients.get("precursors", [])
+                for p in precursors:
+                    if isinstance(p, dict):
+                        name = p.get("name", "") or p.get("compound", "")
+                        if name:
+                            params.append(name)
+            elif isinstance(ingredients, list):
+                for ing in ingredients:
+                    if isinstance(ing, dict):
+                        name = ing.get("compound", "") or ing.get("name", "")
+                        if name:
+                            params.append(name)
+        
+        return " ".join(params)
     
     def get_experiment(self, experiment_id: int) -> Optional[Dict[str, Any]]:
         """根据ID获取实验记录"""

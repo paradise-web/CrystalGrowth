@@ -149,7 +149,22 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
     """保存实验记录到数据库"""
 
     try:
+        print(f"🔍 [DEBUG] save_experiment_to_db 开始")
+        print(f"  - file_name_to_use: {file_name_to_use}")
+        print(f"  - image_bytes 长度: {len(image_bytes) if image_bytes else 0}")
+        print(f"  - image_path: {image_path}")
+        print(f"  - final_state keys: {list(final_state.keys())}")
+        
+        # 检查关键字段
+        has_raw_json = "raw_json" in final_state and final_state["raw_json"]
+        has_reviewed_json = "reviewed_json" in final_state and final_state["reviewed_json"]
+        has_markdown = "formatted_markdown" in final_state and final_state["formatted_markdown"]
+        print(f"  - 有 raw_json: {has_raw_json}")
+        print(f"  - 有 reviewed_json: {has_reviewed_json}")
+        print(f"  - 有 formatted_markdown: {has_markdown}")
+        
         db = get_db()
+        print(f"  ✅ 数据库连接成功")
         
         # 保存图片到持久化目录
         if image_bytes:
@@ -157,20 +172,41 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
             image_ext = Path(file_name_to_use).suffix or ".jpg"
             saved_image_filename = f"{image_hash}{image_ext}"
             saved_image_path = IMAGES_DIR / saved_image_filename
+            print(f"  - 保存图片到: {saved_image_path}")
         
             # 如果图片不存在，保存它
             if not saved_image_path.exists():
                 with open(saved_image_path, "wb") as f:
                     f.write(image_bytes)
+                print(f"  ✅ 图片保存成功")
+            else:
+                print(f"  ℹ️ 图片已存在，跳过保存")
         
             image_reference_path = f"storage/images/{saved_image_filename}"
         else:
             saved_image_path = None
             image_reference_path = None
+            print(f"  ⚠️ 没有图片数据")
+        
+        # 检查是否已存在相同图片的记录
+        image_hash_for_check = hashlib.sha256(image_bytes).hexdigest() if image_bytes else ""
+        existing_record = db._check_existing_by_hash(image_hash_for_check) if image_hash_for_check else None
+        
+        # 如果存在相同图片的记录，生成新的文件名（添加时间戳）
+        final_file_name = file_name_to_use
+        if existing_record:
+            print(f"  ⚠️ 发现重复记录 (ID: {existing_record['id']})，将重命名文件")
+            # 生成带时间戳的新文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_stem = Path(file_name_to_use).stem
+            file_ext = Path(file_name_to_use).suffix or ".jpg"
+            final_file_name = f"{file_stem}_{timestamp}{file_ext}"
+            print(f"  - 新文件名: {final_file_name}")
         
         # 保存到数据库
+        print(f"  📥 调用 db.save_experiment...")
         experiment_id = db.save_experiment(
-            image_filename=file_name_to_use,
+            image_filename=final_file_name,  # 使用可能重命名后的文件名
             image_bytes=image_bytes,
             image_path=str(saved_image_path) if saved_image_path else image_path,
             image_reference_path=image_reference_path,
@@ -182,18 +218,24 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
             review_passed=final_state.get("review_passed_override") if final_state.get("review_passed_override") is not None else final_state.get("review_passed", False),
             review_issues=final_state.get("review_issues", []),
             human_feedback=final_state.get("human_feedback", ""),
-            review_passed_override=final_state.get("review_passed_override")
+            review_passed_override=final_state.get("review_passed_override"),
+            force_new=True  # 强制插入新记录
         )
+        print(f"  ✅ db.save_experiment 返回: {experiment_id}")
         
         # 保存反馈历史
         feedback_history = st.session_state.get('feedback_history', [])
+        print(f"  - 反馈历史记录数: {len(feedback_history)}")
         for feedback in feedback_history:
             db.add_feedback(experiment_id, feedback, "human")
         
+        print(f"✅ [DEBUG] save_experiment_to_db 完成，experiment_id={experiment_id}")
         return experiment_id
     except Exception as e:
-        st.error(f"保存到数据库失败: {str(e)}")
+        print(f"❌ [DEBUG] save_experiment_to_db 失败: {type(e).__name__}: {str(e)}")
         import traceback
+        print(f"   详细错误: {traceback.format_exc()}")
+        st.error(f"保存到数据库失败: {str(e)}")
         st.code(traceback.format_exc())
         return None
 
@@ -624,10 +666,19 @@ with tab2:
                     review_state = st.session_state.get('human_review_state', {})
                     review_passed = review_decision.startswith("✅")
                     
+                    # 调试信息
+                    print(f"🔍 [审核提交] 开始")
+                    print(f"  - review_passed: {review_passed}")
+                    print(f"  - review_state keys: {list(review_state.keys())}")
+                    print(f"  - review_state.get('raw_json') 长度: {len(review_state.get('raw_json', ''))}")
+                    print(f"  - review_state.get('reviewed_json') 长度: {len(review_state.get('reviewed_json', ''))}")
+                    print(f"  - review_state.get('formatted_markdown') 长度: {len(review_state.get('formatted_markdown', ''))}")
+                    
                     # 构建反馈信息
                     feedback = feedback_text if feedback_text else (
                         "人工审核通过" if review_passed else "人工审核未通过"
                     )
+                    print(f"  - feedback: {feedback[:50]}...")
                     
                     # 如果审核不通过且有新反馈，将反馈追加到历史中
                     if not review_passed and feedback_text:
@@ -642,18 +693,23 @@ with tab2:
                             "review_passed_override": review_passed,
                             "needs_human_review": False
                         }
+                        print(f"  - updated_state['review_passed_override']: {updated_state.get('review_passed_override')}")
                         
                         # 保存到数据库
                         image_bytes = st.session_state.get('uploaded_file_bytes')
+                        print(f"  - image_bytes 存在: {image_bytes is not None}")
                         if image_bytes:
-                            save_experiment_to_db(
+                            print(f"  📥 调用 save_experiment_to_db...")
+                            experiment_id = save_experiment_to_db(
                                 updated_state,
                                 file_name_to_use,
                                 image_bytes,
                                 review_state.get("image_path")
                             )
+                            print(f"  - save_experiment_to_db 返回: {experiment_id}")
                             # 设置保存标志，确保数据只保存一次
                             st.session_state['experiment_saved'] = True
+                            print(f"  ✅ 设置 experiment_saved = True")
                         
                         # 清除反馈历史（审核通过后不再需要）
                         if 'feedback_history' in st.session_state:
@@ -1095,10 +1151,13 @@ with tab3:
         page_num = st.session_state.get('history_page', 1)
         
         # 获取记录
+        print(f"🔍 [历史记录查询] filter_review_passed: {filter_review_passed}, search_query: {search_query}, order_desc: {order_desc}")
+        
         total_count = db.get_experiment_count(
             filter_review_passed=filter_review_passed,
             search_query=search_query if search_query else None
         )
+        print(f"  - 总记录数: {total_count}")
         
         experiments = db.get_all_experiments(
             limit=page_size,
@@ -1107,6 +1166,9 @@ with tab3:
             search_query=search_query if search_query else None,
             order_desc=order_desc
         )
+        print(f"  - 当前页记录数: {len(experiments)}")
+        if experiments:
+            print(f"  - 第一条记录ID: {experiments[0].get('id')}, 文件名: {experiments[0].get('image_filename')}, review_passed: {experiments[0].get('review_passed')}")
         
         # 显示统计
         st.info(f"📊 共找到 {total_count} 条记录，当前显示第 {(page_num-1)*page_size+1}-{min(page_num*page_size, total_count)} 条")
