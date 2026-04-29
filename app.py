@@ -11,6 +11,8 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import threading
+import time
 
 from agent import create_lab_agent_graph, generate_markdown
 from database import get_db
@@ -23,6 +25,137 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ================= 后台任务处理器 =================
+class TaskWorker:
+    def __init__(self):
+        self.running = True
+        self.db = get_db()
+    
+    def run(self):
+        while self.running:
+            try:
+                tasks = self.db.get_pending_tasks(limit=3)
+                for task in tasks:
+                    self.process_task(task)
+            except Exception as e:
+                print(f"Task worker error: {e}")
+            time.sleep(3)
+    
+    def stop(self):
+        self.running = False
+    
+    def process_task(self, task):
+        try:
+            task_id = task['task_id']
+            image_filename = task['image_filename']
+            image_bytes = task['image_bytes']
+            
+            self.db.update_task_status(task_id, 'processing', progress=0, current_step='初始化')
+            
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_img_path = os.path.join(temp_dir, image_filename)
+                with open(temp_img_path, 'wb') as f:
+                    f.write(image_bytes)
+            
+                output_md_path = os.path.join(temp_dir, "output.md")
+            
+                agent = create_lab_agent_graph()
+            
+                initial_state = {
+                    "image_path": temp_img_path,
+                    "image_reference_path": image_filename,
+                    "output_path": output_md_path,
+                    "raw_json": "",
+                    "reviewed_json": "",
+                    "formatted_markdown": "",
+                    "needs_correction": False,
+                    "correction_hints": "",
+                    "iteration_count": 0,
+                    "max_iterations": 3,
+                    "review_issues": [],
+                    "review_passed": False,
+                    "human_feedback": "",
+                    "needs_human_review": False,
+                    "messages": []
+                }
+            
+                self.db.update_task_status(task_id, 'processing', progress=25, current_step='视觉感知')
+            
+                config = {"configurable": {"thread_id": "task-worker"}}
+                final_state = None
+            
+                for event in agent.stream(initial_state, config):
+                    for node_name, node_state in event.items():
+                        if node_name == "__end__":
+                            final_state = node_state
+                            break
+                        final_state = node_state
+            
+                        if node_name == "perceiver":
+                            self.db.update_task_status(task_id, 'processing', progress=33, current_step='视觉感知')
+                        elif node_name == "reviewer":
+                            self.db.update_task_status(task_id, 'processing', progress=66, current_step='化学审核')
+                        elif node_name == "formatter":
+                            self.db.update_task_status(task_id, 'processing', progress=85, current_step='生成报告')
+                        elif node_name == "human_review":
+                            self.db.update_task_status(task_id, 'processing', progress=95, current_step='准备审核')
+            
+                self.db.update_task_status(task_id, 'processing', progress=98, current_step='准备待审批')
+            
+                if final_state:
+                    import json
+                    review_issues_json = json.dumps(final_state.get("review_issues", []), ensure_ascii=False)
+                    
+                    # 检查是否需要人工审核
+                    needs_human_review = final_state.get("needs_human_review", True)  # 默认需要人工审核
+                    
+                    if needs_human_review:
+                        # 需要人工审核，进入待审批队列
+                        self.db.update_task_status(
+                            task_id, 
+                            'completed', 
+                            progress=100, 
+                            current_step='待审批',
+                            raw_json=final_state.get("raw_json", ""),
+                            reviewed_json=final_state.get("reviewed_json", ""),
+                            formatted_markdown=final_state.get("formatted_markdown", ""),
+                            iteration_count=final_state.get("iteration_count", 0),
+                            max_iterations=final_state.get("max_iterations", 3),
+                            review_issues=review_issues_json
+                        )
+                        print(f"✅ [TaskWorker] 任务 {task_id} 已进入待审批队列")
+                    else:
+                        # 无需人工审核（已通过人工审核覆盖），直接完成
+                        self.db.update_task_status(
+                            task_id, 
+                            'completed', 
+                            progress=100, 
+                            current_step='处理完成',
+                            raw_json=final_state.get("raw_json", ""),
+                            reviewed_json=final_state.get("reviewed_json", ""),
+                            formatted_markdown=final_state.get("formatted_markdown", ""),
+                            iteration_count=final_state.get("iteration_count", 0),
+                            max_iterations=final_state.get("max_iterations", 3),
+                            review_issues=review_issues_json
+                        )
+                        print(f"✅ [TaskWorker] 任务 {task_id} 处理完成")
+                else:
+                    self.db.update_task_status(
+                        task_id, 
+                        'failed', 
+                        error_message='处理过程中未获取到最终状态'
+                    )
+        
+        except Exception as e:
+            import traceback
+            error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+            self.db.update_task_status(task_id, 'failed', error_message=error_msg)
+
+# 启动后台任务处理器
+worker = TaskWorker()
+worker_thread = threading.Thread(target=worker.run, daemon=True)
+worker_thread.start()
 
 # ================= 全局变量 =================
 # 用于存储当前查看详情的实验ID
@@ -240,11 +373,14 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         return None
 
 # ================= 主标签页 =================
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 首页", "📤 文件上传", "📚 历史记录", "📊 统计信息" , "💬 知识问答" ])# , "💬 知识问答"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 首页", "📤 文件上传", "🔄 待审批", "📚 历史记录", "📊 统计信息" , "💬 知识问答" ])
 
 # 全局变量
 api_key_input = ""
 max_iter = 3
+
+# 初始化数据库连接
+db = get_db()
 
 # 首页
 with tab1:
@@ -344,26 +480,72 @@ with tab1:
 with tab2:
     st.markdown("<h1 class='main-title'>📤 文件上传</h1>", unsafe_allow_html=True)
     st.markdown("上传实验记录本的手写图片，AI 将自动提取数据、校验化学合理性并生成 Markdown 报告。")
+    st.markdown("**支持同时上传多张图片，后台自动并行处理**")
     
-    uploaded_file = st.file_uploader("📤 上传图片 (支持 JPG, PNG)", type=["jpg", "jpeg", "png"])
+    uploaded_files = st.file_uploader(
+        "📤 上传图片 (支持多选 JPG, PNG)", 
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
 
-    # 如果有上传的文件，保存文件名到 session state（用于页面重新运行时保持状态）
+    # 上传按钮 - 点击后创建任务
+    if uploaded_files and st.button("🚀 开始上传并处理", type="primary"):
+        # 创建任务列表
+        task_ids = []
+        for uploaded_file in uploaded_files:
+            file_bytes = uploaded_file.getvalue()
+            task_id = db.create_processing_task(uploaded_file.name, file_bytes)
+            task_ids.append(task_id)
+        st.success(f"已创建 {len(task_ids)} 个任务，后台正在处理...")
+        # 刷新页面显示任务状态
+        st.rerun()
+
+    # 显示任务列表
+    st.markdown("---")
+    st.subheader("📋 任务列表")
+    
+    tasks = db.get_processing_tasks(limit=20)
+    if tasks:
+        for task in tasks:
+            with st.container():
+                col_task_info, col_task_status = st.columns([2, 1])
+                with col_task_info:
+                    st.markdown(f"**📄 {task['image_filename']}**")
+                    st.markdown(f"创建时间: {task['created_at']}")
+                with col_task_status:
+                    status = task['status']
+                    if status == 'pending':
+                        st.status("⏳ 待处理", state="running")
+                    elif status == 'processing':
+                        st.progress(task['progress'], text=f"处理中: {task['current_step']}")
+                    elif status == 'completed':
+                        st.status("✅ 处理完成，待审批", state="complete")
+                        st.info("请手动切换到「� 待审批」标签页进行审核")
+                    elif status == 'failed':
+                        st.status("❌ 处理失败", state="error")
+                        st.error(task.get('error_message', '未知错误'))
+                        if st.button("🔄 重新处理", key=f"retry_{task['task_id']}"):
+                            db.update_task_status(task['task_id'], 'pending', progress=0)
+                            st.rerun()
+                st.markdown("---")
+    else:
+        st.info("暂无任务，请上传图片开始处理")
+
+    # 原有单文件处理逻辑（保持兼容）
+    uploaded_file = uploaded_files[0] if uploaded_files else None
+    
     if uploaded_file is not None:
         st.session_state['uploaded_file_name'] = uploaded_file.name
-        # 保存文件内容到 session state（用于重新显示）
         st.session_state['uploaded_file_bytes'] = uploaded_file.getvalue()
 
-    # 创建两列布局：左侧显示原图，右侧显示结果
     col1, col2 = st.columns([1, 1])
 
-    # 检查是否有处理中的状态（审核完成或重新处理）
     has_processing_state = (
         st.session_state.get('human_review_completed', False) or 
         st.session_state.get('restart_processing', False) or
         st.session_state.get('needs_human_review', False)
     )
 
-    # 如果有上传的文件，或者有处理中的状态，显示内容
     if uploaded_file is not None or has_processing_state:
         # 显示图片：优先使用上传的文件，如果没有则使用 session state 中保存的
         if uploaded_file is not None:
@@ -686,7 +868,7 @@ with tab2:
                         # 注意：由于使用了动态 key，不需要手动清除，下次会自动使用新的 key
                     
                     if review_passed:
-                        # 审核通过，直接显示结果
+                        # 审核通过，标记完成（实际保存到历史记录需要在待审批页面完成）
                         updated_state = {
                             **review_state,
                             "human_feedback": feedback,
@@ -694,22 +876,6 @@ with tab2:
                             "needs_human_review": False
                         }
                         print(f"  - updated_state['review_passed_override']: {updated_state.get('review_passed_override')}")
-                        
-                        # 保存到数据库
-                        image_bytes = st.session_state.get('uploaded_file_bytes')
-                        print(f"  - image_bytes 存在: {image_bytes is not None}")
-                        if image_bytes:
-                            print(f"  📥 调用 save_experiment_to_db...")
-                            experiment_id = save_experiment_to_db(
-                                updated_state,
-                                file_name_to_use,
-                                image_bytes,
-                                review_state.get("image_path")
-                            )
-                            print(f"  - save_experiment_to_db 返回: {experiment_id}")
-                            # 设置保存标志，确保数据只保存一次
-                            st.session_state['experiment_saved'] = True
-                            print(f"  ✅ 设置 experiment_saved = True")
                         
                         # 清除反馈历史（审核通过后不再需要）
                         if 'feedback_history' in st.session_state:
@@ -847,262 +1013,111 @@ with tab2:
                 st.markdown("</div>", unsafe_allow_html=True)
                 st.stop()  # 暂停执行，等待用户操作
 
-        # 2. 开始处理按钮（只在有上传文件时显示）
-        if uploaded_file is not None:
-            # 检查是否正在处理中
-            is_processing = st.session_state.get('is_processing', False)
-            if col2.button("🚀 开始分析", type="primary", disabled=is_processing):
-                # 开始新处理时，清除之前的反馈历史和会话计数器
-                if 'feedback_history' in st.session_state:
-                    st.session_state['feedback_history'] = []
-                # 重置审核会话计数器，确保新的分析使用新的 key
-                st.session_state['review_session_counter'] = 0
-                # 重置保存标记
-                st.session_state['experiment_saved'] = False
-                # 设置处理中标志，禁用开始分析按钮
-                st.session_state['is_processing'] = True
-                
-                if not os.getenv("DASHSCOPE_API_KEY"):
-                    st.error("❌ 未检测到 API Key，请在首页输入。")
-                    st.stop()
+# 待审批页
+with tab3:
+    st.markdown("<h1 class='main-title'>🔄 待审批</h1>", unsafe_allow_html=True)
+    st.markdown("显示处理完成但待人工审核的实验记录")
+    
+    try:
+        db = get_db()
+        
+        tasks = db.get_tasks_needing_review()
+        
+        if tasks:
+            for idx, task in enumerate(tasks):
+                with st.container():
+                    st.markdown(f"### 📄 {task['image_filename']}")
+                    st.markdown(f"创建时间: {task['created_at']}")
                     
-                # 创建临时目录来模拟本地文件操作 (因为你的 agent 逻辑依赖文件路径)
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    # 保存上传的图片到临时文件
-                    temp_img_path = os.path.join(temp_dir, file_name_to_use)
-                    with open(temp_img_path, "wb") as f:
-                        if uploaded_file is not None:
-                            f.write(uploaded_file.getbuffer())
-                        else:
-                            # 使用 session state 中保存的文件内容
-                            f.write(st.session_state.get('uploaded_file_bytes', b''))
+                    # 显示处理结果预览
+                    if task.get('formatted_markdown'):
+                        display_md = re.sub(r'!\[.*?\]\([^\)]+\)', '*(原始图片见左侧)*', task['formatted_markdown'])
+                        with st.expander("📋 查看提取结果", expanded=True):
+                            st.markdown(display_md, unsafe_allow_html=True)
+                    elif task.get('raw_json'):
+                        try:
+                            raw_data = json.loads(task['raw_json'].replace("```json", "").replace("```", "").strip())
+                            with st.expander("📋 查看提取结果", expanded=True):
+                                st.json(raw_data)
+                        except:
+                            st.code(task['raw_json'][:500] + "...")
                     
-                    # 设置输出路径
-                    output_md_path = os.path.join(temp_dir, "output.md")
+                    # 解析 review_issues
+                    review_issues = []
+                    if task.get('review_issues'):
+                        try:
+                            review_issues = json.loads(task['review_issues'])
+                        except:
+                            pass
                     
-                    # 初始化 Agent
-                    try:
-                        agent = create_lab_agent_graph()
-                        
-                        # 构建初始状态
-                        initial_state = {
-                            "image_path": temp_img_path,
-                            "image_reference_path": file_name_to_use, # Markdown 中显示的名称
-                            "output_path": output_md_path,
-                            "raw_json": "",
-                            "reviewed_json": "",
-                            "formatted_markdown": "",
-                            "needs_correction": False,
-                            "correction_hints": "",
-                            "iteration_count": 0,
-                            "max_iterations": max_iter,
-                            "review_issues": [],
-                            "review_passed": False,
-                            "human_feedback": "",
-                            "needs_human_review": False,
-                            "messages": []
-                        }
-                        
-                        # ================= 实时进度显示 =================
-                        progress_container = col2.container()
-                        with progress_container:
-                            st.markdown("<div class='card'>", unsafe_allow_html=True)
-                            st.markdown("### 🔄 处理进度")
-                            
-                            # 创建进度条和状态显示区域
-                            progress_bar = st.progress(0)
-                            status_placeholder = st.empty()
-                            log_placeholder = st.empty()
-                            
-                            # 节点状态映射
-                            node_names = {
-                                "perceiver": "🔍 Role A: 视觉感知者",
-                                "reviewer": "🔬 Role B: 领域审核员",
-                                "formatter": "📝 Role C: 数据工程师",
-                                "human_review": "👤 人工审核"
-                            }
-                            
-                            # 用于存储日志和状态
-                            execution_logs = []
-                            current_node = None
-                            final_state = None
-                            processed_nodes = set()  # 跟踪已处理的节点，避免重复日志
-                            last_iteration = 0  # 跟踪迭代次数变化
-                            
-                            # 使用流式 API 实时获取状态
-                            config = {"configurable": {"thread_id": "streamlit-user"}}
-                            
-                            # 运行工作流并实时更新 UI
-                            for event in agent.stream(initial_state, config):
-                                # 处理不同类型的事件
-                                for node_name, node_state in event.items():
-                                    if node_name == "__end__":
-                                        final_state = node_state
-                                        break
-                                    
-                                    current_node = node_name
-                                    state = node_state
-                                    
-                                    # 保存当前状态作为最终状态（如果后续没有 __end__ 事件）
-                                    final_state = state
-                                    
-                                    # 更新进度条（根据节点顺序）
-                                    node_order = ["perceiver", "reviewer", "formatter", "human_review"]
-                                    if node_name in node_order:
-                                        progress = (node_order.index(node_name) + 1) / len(node_order)
-                                        progress_bar.progress(progress)
-                                    
-                                    # 更新状态显示
-                                    node_display_name = node_names.get(node_name, node_name)
-                                    status_placeholder.markdown(f"**当前步骤**: {node_display_name}")
-                                    
-                                    # 收集执行日志（避免重复）
-                                    iteration = state.get("iteration_count", 0)
-                                    node_key = f"{node_name}_{iteration}"  # 使用节点名+迭代次数作为唯一标识
-                                    
-                                    # Role A: 视觉感知者
-                                    if node_name == "perceiver" and node_key not in processed_nodes:
-                                        processed_nodes.add(node_key)
-                                        if iteration > 0:
-                                            execution_logs.append({
-                                                "icon": "🔄",
-                                                "message": f"第 {iteration} 次自修正：重新分析图片...",
-                                                "type": "info"
-                                            })
-                                        else:
-                                            execution_logs.append({
-                                                "icon": "🔍",
-                                                "message": "正在使用 Qwen-VL 分析图片，提取实验数据...",
-                                                "type": "info"
-                                            })
-                                        
-                                        if state.get("raw_json"):
-                                            execution_logs.append({
-                                                "icon": "✅",
-                                                "message": "数据提取完成",
-                                                "type": "success"
-                                            })
-                                    
-                                    # Role B: 领域审核员
-                                    elif node_name == "reviewer" and node_key not in processed_nodes:
-                                        processed_nodes.add(node_key)
-                                        execution_logs.append({
-                                            "icon": "🔬",
-                                            "message": "正在审核数据合理性...",
-                                            "type": "info"
-                                        })
-                                        
-                                        review_issues = state.get("review_issues", [])
-                                        review_passed = state.get("review_passed", False)
-                                        
-                                        if review_issues:
-                                            error_count = sum(1 for i in review_issues if i.get("severity") == "error")
-                                            warning_count = sum(1 for i in review_issues if i.get("severity") == "warning")
-                                            
-                                            if error_count > 0:
-                                                execution_logs.append({
-                                                    "icon": "❌",
-                                                    "message": f"发现 {error_count} 个严重错误，{warning_count} 个警告",
-                                                    "type": "error"
-                                                })
-                                                
-                                                # 显示前3个错误
-                                                for idx, issue in enumerate(review_issues[:3], 1):
-                                                    if issue.get("severity") == "error":
-                                                        execution_logs.append({
-                                                            "icon": "  •",
-                                                            "message": f"{issue.get('description', '')}",
-                                                            "type": "error_detail"
-                                                        })
-                                                
-                                                if state.get("needs_correction"):
-                                                    execution_logs.append({
-                                                        "icon": "🔄",
-                                                        "message": "将触发自修正机制，重新提取数据...",
-                                                        "type": "warning"
-                                                    })
-                                            elif warning_count > 0:
-                                                execution_logs.append({
-                                                    "icon": "⚠️",
-                                                    "message": f"发现 {warning_count} 个警告",
-                                                    "type": "warning"
-                                                })
-                                        else:
-                                            execution_logs.append({
-                                                "icon": "✅",
-                                                "message": "审核通过，未发现问题",
-                                                "type": "success"
-                                            })
-                                    
-                                    # Role C: 数据工程师
-                                    elif node_name == "formatter" and node_key not in processed_nodes:
-                                        processed_nodes.add(node_key)
-                                        execution_logs.append({
-                                            "icon": "📝",
-                                            "message": "正在生成标准化 Markdown 报告...",
-                                            "type": "info"
-                                        })
-                                        
-                                        if state.get("formatted_markdown"):
-                                            execution_logs.append({
-                                                "icon": "✅",
-                                                "message": "报告生成完成",
-                                                "type": "success"
-                                            })
-                                    
-                                    # 人工审核
-                                    elif node_name == "human_review" and node_key not in processed_nodes:
-                                        processed_nodes.add(node_key)
-                                        execution_logs.append({
-                                            "icon": "👤",
-                                            "message": "等待人工审核...",
-                                            "type": "info"
-                                        })
-                                    
-                                    # 更新日志显示
-                                    log_html = "<div style='max-height: 300px; overflow-y: auto; padding: 10px; background-color: #f8f9fa; border-radius: 5px;'>"
-                                    for log in execution_logs[-10:]:
-                                        icon = log["icon"]
-                                        msg = log["message"]
-                                        log_type = log["type"]
-                                        
-                                        color = "#17a2b8"
-                                        bg_color = "#d1ecf1"
-                                        
-                                        log_html += f"<div style='margin: 5px 0; padding: 8px 12px; background-color: {bg_color}; color: {color}; border-radius: 4px;'><strong>{icon}</strong> {msg}</div>"
-                                    
-                                    log_html += "</div>"
-                                    log_placeholder.markdown(log_html, unsafe_allow_html=True)
-                            
-                            progress_bar.progress(1.0)
-                            status_placeholder.markdown("**✅ 处理完成！**")
-                            st.markdown("</div>", unsafe_allow_html=True)
-                            
-                            # 保存最终状态：无论审核是否通过，都应该交由人工审核
-                            if final_state:
-                                # 修改逻辑：无论审核是否通过，都应该进入人工审核
-                                # 确保清除之前的反馈，让 human_review_node 能够再次触发
-                                final_state['human_feedback'] = ""
-                                final_state['review_passed_override'] = None
-                                st.session_state['needs_human_review'] = True
-                                st.session_state['human_review_state'] = final_state
-                                st.session_state['agent'] = agent
-                                st.session_state['config'] = config
-                                # 设置标志，表示这是新的审核会话，需要清除输入框
-                                st.session_state['clear_feedback_on_next_review'] = True
-                                # 处理完成，重置处理中标志
-                                st.session_state['is_processing'] = False
+                    # 审核决策 - 使用索引避免 key 冲突
+                    col_decision, col_feedback = st.columns([1, 2])
+                    with col_decision:
+                        review_decision = st.radio(
+                            "审核结果",
+                            ["✅ 通过", "❌ 不通过"],
+                            key=f"review_decision_{idx}",
+                            horizontal=True
+                        )
+                    with col_feedback:
+                        feedback_text = st.text_area(
+                            "审核备注（必填，不通过时作为修正依据）",
+                            placeholder="请输入审核意见或说明...",
+                            key=f"feedback_text_{idx}"
+                        )
+                    
+                    col_submit, col_delete = st.columns([3, 1])
+                    with col_submit[0]:
+                        if st.button(f"✅ 提交审核", key=f"submit_{task['task_id']}", type="primary", use_container_width=True):
+                            if not feedback_text:
+                                st.error("请输入审核备注")
+                            else:
+                                passed = review_decision == "✅ 通过"
+                                if passed:
+                                    experiment_id = db.save_experiment(
+                                        image_filename=task['image_filename'],
+                                        image_bytes=task['image_bytes'],
+                                        image_path=None,
+                                        image_reference_path=task['image_filename'],
+                                        raw_json=task.get('raw_json', ''),
+                                        reviewed_json=task.get('reviewed_json', ''),
+                                        formatted_markdown=task.get('formatted_markdown', ''),
+                                        iteration_count=task.get('iteration_count', 0),
+                                        max_iterations=task.get('max_iterations', 3),
+                                        review_passed=True,
+                                        review_issues=review_issues,
+                                        human_feedback=f"人工审核通过 | 备注: {feedback_text}",
+                                        review_passed_override=True
+                                    )
+                                    db.delete_task(task['task_id'])
+                                    st.success(f"审核通过！记录已保存 (ID: {experiment_id})")
+                                else:
+                                    db.update_task_status(
+                                        task['task_id'], 
+                                        'pending', 
+                                        progress=0,
+                                        raw_json="",
+                                        reviewed_json="",
+                                        formatted_markdown="",
+                                        review_issues=""
+                                    )
+                                    st.info("已记录不通过原因，任务已重新提交处理")
                                 st.rerun()
-                                
-                    except Exception as e:
-                        st.error(f"处理时出错: {str(e)}")
-                        import traceback
-                        st.code(traceback.format_exc())
-                        # 处理出错，重置处理中标志
-                        st.session_state['is_processing'] = False
+                    with col_delete[0]:
+                        if st.button("🗑️ 删除", key=f"delete_{task['task_id']}", use_container_width=True):
+                            db.delete_task(task['task_id'])
+                            st.success("任务已删除")
+                            st.rerun()
+                    
+                    st.markdown("---")
+        else:
+            st.info("🎉 暂无待审批的记录")
+    
+    except Exception as e:
+        st.error(f"加载待审批记录失败: {str(e)}")
 
 # 历史记录页
-with tab3:
+with tab4:
     st.markdown("<h1 class='main-title'>📚 历史记录</h1>", unsafe_allow_html=True)
     
     try:
@@ -1338,7 +1353,7 @@ with tab3:
         st.code(traceback.format_exc())
 
 # 统计信息页
-with tab4:
+with tab5:
     st.markdown("<h1 class='main-title'>📊 统计信息</h1>", unsafe_allow_html=True)
     
     try:
@@ -1453,7 +1468,7 @@ with tab4:
         st.code(traceback.format_exc())
 
 # 知识问答页
-with tab5:
+with tab6:
     st.markdown("<h1 class='main-title'>💬 知识问答</h1>", unsafe_allow_html=True)
     st.markdown("欢迎使用晶体生长实验助手的知识问答功能！在这里，你可以向AI询问关于晶体生长实验的相关问题。")
     
@@ -1580,18 +1595,6 @@ with tab5:
     if st.session_state.get('human_review_completed', False) and not st.session_state.get('needs_human_review', False):
         final_state = st.session_state.get('final_state_after_review')
         if final_state:
-            # 保存到数据库（如果还没有保存）
-            if not st.session_state.get('experiment_saved', False):
-                image_bytes = st.session_state.get('uploaded_file_bytes')
-                if image_bytes:
-                    save_experiment_to_db(
-                        final_state,
-                        file_name_to_use,
-                        image_bytes,
-                        final_state.get("image_path")
-                    )
-                    st.session_state['experiment_saved'] = True
-            
             # 清空之前的状态标记
             st.session_state['human_review_completed'] = False
             st.session_state['final_state_after_review'] = None

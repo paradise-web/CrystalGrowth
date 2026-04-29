@@ -94,6 +94,30 @@ class ExperimentDB:
             )
         """)
         
+        # 创建处理任务表（用于异步处理队列）
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS processing_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL UNIQUE,
+                image_filename TEXT NOT NULL,
+                image_bytes BLOB NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                progress INTEGER DEFAULT 0,
+                current_step TEXT,
+                experiment_id INTEGER,
+                raw_json TEXT,
+                reviewed_json TEXT,
+                formatted_markdown TEXT,
+                iteration_count INTEGER DEFAULT 0,
+                max_iterations INTEGER DEFAULT 3,
+                review_issues TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE SET NULL
+            )
+        """)
+        
         # 创建索引以提高查询性能
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_image_hash ON experiments(image_hash)
@@ -108,8 +132,46 @@ class ExperimentDB:
             CREATE INDEX IF NOT EXISTS idx_feedback_experiment ON feedback_history(experiment_id)
         """)
         
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_task_status ON processing_tasks(status)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_task_created ON processing_tasks(created_at)
+        """)
+        
         conn.commit()
+        
+        self._migrate_processing_tasks(conn)
+        
         conn.close()
+    
+    def _migrate_processing_tasks(self, conn: sqlite3.Connection):
+        """
+        迁移 processing_tasks 表，添加新列（如果不存在）
+        """
+        cursor = conn.cursor()
+        
+        cursor.execute("PRAGMA table_info(processing_tasks)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        new_columns = {
+            'raw_json': 'TEXT',
+            'reviewed_json': 'TEXT',
+            'formatted_markdown': 'TEXT',
+            'iteration_count': 'INTEGER DEFAULT 0',
+            'max_iterations': 'INTEGER DEFAULT 3',
+            'review_issues': 'TEXT'
+        }
+        
+        for col_name, col_type in new_columns.items():
+            if col_name not in columns:
+                try:
+                    cursor.execute(f"ALTER TABLE processing_tasks ADD COLUMN {col_name} {col_type}")
+                    print(f"  ✅ Added column {col_name} to processing_tasks")
+                except sqlite3.OperationalError as e:
+                    print(f"  ⚠️ Failed to add column {col_name}: {e}")
+        
+        conn.commit()
     
     def _calculate_image_hash(self, image_bytes: bytes) -> str:
         """计算图片的哈希值（用于去重）"""
@@ -610,6 +672,196 @@ class ExperimentDB:
         """获取处理时间统计"""
         # 由于我们没有存储处理时间，返回None
         return None
+    
+    def create_processing_task(self, image_filename: str, image_bytes: bytes) -> str:
+        """
+        创建处理任务
+        
+        Args:
+            image_filename: 图片文件名
+            image_bytes: 图片二进制数据
+            
+        Returns:
+            任务ID
+        """
+        import uuid
+        task_id = str(uuid.uuid4())
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO processing_tasks (task_id, image_filename, image_bytes)
+            VALUES (?, ?, ?)
+        """, (task_id, image_filename, image_bytes))
+        
+        conn.commit()
+        conn.close()
+        
+        return task_id
+    
+    def update_task_status(self, task_id: str, status: str, **kwargs):
+        """
+        更新任务状态
+        
+        Args:
+            task_id: 任务ID
+            status: 任务状态 (pending, processing, completed, failed)
+            kwargs: 其他可选字段: progress, current_step, error_message, experiment_id,
+                     raw_json, reviewed_json, formatted_markdown, iteration_count, max_iterations, review_issues
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        update_fields = ["status = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [status]
+        
+        if 'progress' in kwargs:
+            update_fields.append("progress = ?")
+            params.append(kwargs['progress'])
+        if 'current_step' in kwargs:
+            update_fields.append("current_step = ?")
+            params.append(kwargs['current_step'])
+        if 'error_message' in kwargs:
+            update_fields.append("error_message = ?")
+            params.append(kwargs['error_message'])
+        if 'experiment_id' in kwargs:
+            update_fields.append("experiment_id = ?")
+            params.append(kwargs['experiment_id'])
+        if 'raw_json' in kwargs:
+            update_fields.append("raw_json = ?")
+            params.append(kwargs['raw_json'])
+        if 'reviewed_json' in kwargs:
+            update_fields.append("reviewed_json = ?")
+            params.append(kwargs['reviewed_json'])
+        if 'formatted_markdown' in kwargs:
+            update_fields.append("formatted_markdown = ?")
+            params.append(kwargs['formatted_markdown'])
+        if 'iteration_count' in kwargs:
+            update_fields.append("iteration_count = ?")
+            params.append(kwargs['iteration_count'])
+        if 'max_iterations' in kwargs:
+            update_fields.append("max_iterations = ?")
+            params.append(kwargs['max_iterations'])
+        if 'review_issues' in kwargs:
+            update_fields.append("review_issues = ?")
+            params.append(kwargs['review_issues'])
+        
+        params.append(task_id)
+        
+        cursor.execute(
+            f"UPDATE processing_tasks SET {', '.join(update_fields)} WHERE task_id = ?",
+            params
+        )
+        
+        conn.commit()
+        conn.close()
+    
+    def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        根据任务ID获取任务信息
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM processing_tasks WHERE task_id = ?", (task_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return dict(row)
+        return None
+    
+    def get_pending_tasks(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        获取等待处理的任务
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM processing_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?",
+            (limit,)
+        )
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def get_tasks_needing_review(self) -> List[Dict[str, Any]]:
+        """
+        获取需要人工审核的任务（处理完成但未保存到数据库）
+        条件：status = 'completed' AND experiment_id IS NULL
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM processing_tasks
+            WHERE status = 'completed' AND experiment_id IS NULL
+            ORDER BY created_at DESC
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    
+    def delete_task(self, task_id: str) -> bool:
+        """
+        删除任务
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM processing_tasks WHERE task_id = ?", (task_id,))
+        deleted = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
+        
+        return deleted
+    
+    def get_all_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        获取所有任务（用于显示任务列表）
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM processing_tasks ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
+
+    def get_processing_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        获取正在处理中的任务（不包括已完成状态）
+        用于文件上传页面的任务列表显示
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM processing_tasks WHERE status != 'completed' ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in rows]
     
     def search_experiments_by_compound(
         self,

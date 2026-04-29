@@ -108,29 +108,16 @@ def test_upload_process():
                 print(f"- Raw JSON: {'Yes' if final_state.get('raw_json') else 'No'}")
                 print(f"- Reviewed JSON: {'Yes' if final_state.get('reviewed_json') else 'No'}")
                 
-                # 保存到数据库
-                try:
-                    db = get_db()
-                    with open(image_path, 'rb') as f:
-                        image_bytes = f.read()
-                    
-                    experiment_id = db.save_experiment(
-                        image_filename=test_image,
-                        image_bytes=image_bytes,
-                        image_path=image_path,
-                        raw_json=final_state.get("raw_json", ""),
-                        reviewed_json=final_state.get("reviewed_json", ""),
-                        formatted_markdown=final_state.get("formatted_markdown", ""),
-                        iteration_count=final_state.get("iteration_count", 0),
-                        max_iterations=3,
-                        review_passed=final_state.get("review_passed", False),
-                        review_issues=final_state.get("review_issues", [])
-                    )
-                    print(f"Experiment saved to database with ID: {experiment_id}")
-                except Exception as e:
-                    print(f"Failed to save to database: {e}")
-                    import traceback
-                    traceback.print_exc()
+                # 检查是否需要人工审核
+                needs_human_review = final_state.get("needs_human_review", False)
+                if needs_human_review:
+                    print("\n⚠️ 需要人工审核，结果不会自动保存到数据库")
+                    print("   请在应用的待审批页面进行审核后再保存")
+                else:
+                    print("\n✅ 处理完成，无需人工审核")
+                
+                # 注意：测试模式下不自动保存到历史记录
+                # 需要在待审批页面人工审核通过后才能保存
             else:
                 print("No final state received")
                 
