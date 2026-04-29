@@ -551,27 +551,28 @@ with tab2:
         if selected_tasks:
             col_delete_selected = st.columns([1])
             with col_delete_selected[0]:
-                if st.button(f"🗑️ 删除选中的 {len(selected_tasks)} 个任务", type="primary", use_container_width=True):
-                    confirm_key = f"confirm_delete_{'-'.join(selected_tasks)}"
-                    if confirm_key not in st.session_state:
-                        st.session_state[confirm_key] = False
-                    
-                    if not st.session_state[confirm_key]:
+                confirm_key = f"confirm_delete_{'-'.join(selected_tasks)}"
+                if confirm_key not in st.session_state:
+                    st.session_state[confirm_key] = False
+                
+                if st.session_state[confirm_key]:
+                    st.warning(f"确定要删除选中的 {len(selected_tasks)} 个任务吗？此操作不可撤销。")
+                    col_confirm, col_cancel = st.columns([1, 1])
+                    with col_confirm:
+                        if st.button("✅ 确认删除", key=f"confirm_btn_{confirm_key}", use_container_width=True):
+                            for task_id in selected_tasks:
+                                db.delete_task(task_id)
+                            st.success(f"已成功删除 {len(selected_tasks)} 个任务")
+                            st.session_state[confirm_key] = False
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("❌ 取消", key=f"cancel_btn_{confirm_key}", use_container_width=True):
+                            st.session_state[confirm_key] = False
+                            st.rerun()
+                else:
+                    if st.button(f"🗑️ 删除选中的 {len(selected_tasks)} 个任务", type="primary", use_container_width=True):
                         st.session_state[confirm_key] = True
-                        st.warning(f"确定要删除选中的 {len(selected_tasks)} 个任务吗？此操作不可撤销。")
-                        col_confirm, col_cancel = st.columns([1, 1])
-                        with col_confirm:
-                            if st.button("✅ 确认删除", key=f"confirm_{confirm_key}", use_container_width=True):
-                                for task_id in selected_tasks:
-                                    db.delete_task(task_id)
-                                st.success(f"已成功删除 {len(selected_tasks)} 个任务")
-                                st.session_state[confirm_key] = False
-                                st.rerun()
-                        with col_cancel:
-                            if st.button("❌ 取消", key=f"cancel_{confirm_key}", use_container_width=True):
-                                st.session_state[confirm_key] = False
-                                st.rerun()
-                    st.stop()
+                        st.rerun()
     else:
         st.info("暂无任务，请上传图片开始处理")
 
