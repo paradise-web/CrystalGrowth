@@ -118,6 +118,21 @@ class ExperimentDB:
             )
         """)
         
+        # 创建审计日志表（用于记录历史记录入库操作）
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,  -- 'CREATE', 'UPDATE', 'DELETE', 'APPROVE'
+                table_name TEXT NOT NULL,     -- 'experiments', 'processing_tasks', etc.
+                record_id INTEGER,            -- 被操作的记录ID
+                operator TEXT DEFAULT 'system',  -- 操作人员
+                trigger_condition TEXT,      -- 触发条件描述
+                conditions_met TEXT,         -- 条件满足情况（JSON格式）
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                details TEXT                 -- 操作详情（JSON格式）
+            )
+        """)
+        
         # 创建索引以提高查询性能
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_image_hash ON experiments(image_hash)
@@ -137,6 +152,13 @@ class ExperimentDB:
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_task_created ON processing_tasks(created_at)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_audit_operation ON audit_logs(operation_type)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at)
         """)
         
         conn.commit()
@@ -538,6 +560,120 @@ class ExperimentDB:
         conn.commit()
         conn.close()
     
+    def log_audit(self, operation_type: str, table_name: str, record_id: int = None, 
+                  operator: str = "system", trigger_condition: str = "", 
+                  conditions_met: dict = None, details: dict = None):
+        """
+        记录审计日志
+        
+        Args:
+            operation_type: 操作类型 ('CREATE', 'UPDATE', 'DELETE', 'APPROVE')
+            table_name: 操作的表名
+            record_id: 被操作的记录ID
+            operator: 操作人员
+            trigger_condition: 触发条件描述
+            conditions_met: 条件满足情况（字典）
+            details: 操作详情（字典）
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        conditions_met_json = json.dumps(conditions_met or {}, ensure_ascii=False)
+        details_json = json.dumps(details or {}, ensure_ascii=False)
+        
+        cursor.execute("""
+            INSERT INTO audit_logs (
+                operation_type, table_name, record_id, operator, 
+                trigger_condition, conditions_met, details
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (operation_type, table_name, record_id, operator, 
+              trigger_condition, conditions_met_json, details_json))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_audit_logs(self, operation_type: str = None, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        获取审计日志
+        
+        Args:
+            operation_type: 操作类型筛选（可选）
+            limit: 返回记录数限制
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM audit_logs WHERE 1=1"
+        params = []
+        
+        if operation_type:
+            query += " AND operation_type = ?"
+            params.append(operation_type)
+        
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        result = []
+        for row in rows:
+            row_dict = dict(row)
+            if row_dict.get('conditions_met'):
+                try:
+                    row_dict['conditions_met'] = json.loads(row_dict['conditions_met'])
+                except:
+                    pass
+            if row_dict.get('details'):
+                try:
+                    row_dict['details'] = json.loads(row_dict['details'])
+                except:
+                    pass
+            result.append(row_dict)
+        
+        return result
+    
+    def validate_approval_conditions(self, task_id: str) -> Dict[str, bool]:
+        """
+        校验历史记录入库的三重条件：
+        a) Agent已完成对试验记录报告的处理
+        b) 任务状态已更新为"待审核"
+        c) 用户在待审批页面明确点击"通过审核"按钮
+        
+        Args:
+            task_id: 任务ID
+        
+        Returns:
+            条件满足情况字典
+        """
+        task = self.get_task(task_id)
+        
+        conditions = {
+            'agent_processing_completed': False,
+            'status_pending_review': False,
+            'user_approved': False
+        }
+        
+        if task:
+            # 条件a: Agent已完成处理 - 检查是否有处理结果
+            conditions['agent_processing_completed'] = (
+                task.get('status') == 'completed' and 
+                (task.get('raw_json') or task.get('reviewed_json') or task.get('formatted_markdown'))
+            )
+            
+            # 条件b: 任务状态为待审核
+            conditions['status_pending_review'] = (
+                task.get('status') == 'completed' and task.get('experiment_id') is None
+            )
+            
+            # 条件c: 用户已点击"通过审核"按钮
+            # 这个条件需要在应用层检查，这里默认返回False，由应用层设置
+            conditions['user_approved'] = False
+        
+        return conditions
+    
     def get_feedback_history(self, experiment_id: int) -> List[Dict[str, Any]]:
         """获取实验的反馈历史"""
         conn = sqlite3.connect(self.db_path)
@@ -846,8 +982,9 @@ class ExperimentDB:
 
     def get_processing_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        获取正在处理中的任务（不包括已完成状态）
+        获取所有处理任务（包括所有状态）
         用于文件上传页面的任务列表显示
+        确保与待审批页面的任务数目一致
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row

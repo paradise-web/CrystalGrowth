@@ -377,7 +377,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 首页", "📤 文件上传"
 
 # 全局变量
 api_key_input = ""
-max_iter = 3
+max_iter = 1
 
 # 初始化数据库连接
 db = get_db()
@@ -505,10 +505,25 @@ with tab2:
     st.subheader("📋 任务列表")
     
     tasks = db.get_processing_tasks(limit=20)
+    
     if tasks:
+        selected_tasks = []
+        
+        col_select_all = st.columns([1])
+        with col_select_all[0]:
+            select_all = st.checkbox("全选", key="select_all")
+        
         for task in tasks:
             with st.container():
-                col_task_info, col_task_status = st.columns([2, 1])
+                col_select, col_task_info, col_task_status = st.columns([0.3, 2, 1.5])
+                with col_select:
+                    if select_all:
+                        selected = st.checkbox("", value=True, key=f"select_{task['task_id']}")
+                    else:
+                        selected = st.checkbox("", key=f"select_{task['task_id']}")
+                    if selected:
+                        selected_tasks.append(task['task_id'])
+                
                 with col_task_info:
                     st.markdown(f"**📄 {task['image_filename']}**")
                     st.markdown(f"创建时间: {task['created_at']}")
@@ -527,7 +542,33 @@ with tab2:
                         if st.button("🔄 重新处理", key=f"retry_{task['task_id']}"):
                             db.update_task_status(task['task_id'], 'pending', progress=0)
                             st.rerun()
+                
                 st.markdown("---")
+        
+        if selected_tasks:
+            col_delete_selected = st.columns([1])
+            with col_delete_selected[0]:
+                if st.button(f"🗑️ 删除选中的 {len(selected_tasks)} 个任务", type="primary", use_container_width=True):
+                    confirm_key = f"confirm_delete_{'-'.join(selected_tasks)}"
+                    if confirm_key not in st.session_state:
+                        st.session_state[confirm_key] = False
+                    
+                    if not st.session_state[confirm_key]:
+                        st.session_state[confirm_key] = True
+                        st.warning(f"确定要删除选中的 {len(selected_tasks)} 个任务吗？此操作不可撤销。")
+                        col_confirm, col_cancel = st.columns([1, 1])
+                        with col_confirm:
+                            if st.button("✅ 确认删除", key=f"confirm_{confirm_key}", use_container_width=True):
+                                for task_id in selected_tasks:
+                                    db.delete_task(task_id)
+                                st.success(f"已成功删除 {len(selected_tasks)} 个任务")
+                                st.session_state[confirm_key] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("❌ 取消", key=f"cancel_{confirm_key}", use_container_width=True):
+                                st.session_state[confirm_key] = False
+                                st.rerun()
+                    st.stop()
     else:
         st.info("暂无任务，请上传图片开始处理")
 
@@ -1067,31 +1108,95 @@ with tab3:
                         )
                     
                     col_submit, col_delete = st.columns([3, 1])
-                    with col_submit[0]:
+                    with col_submit:
                         if st.button(f"✅ 提交审核", key=f"submit_{task['task_id']}", type="primary", use_container_width=True):
                             if not feedback_text:
                                 st.error("请输入审核备注")
                             else:
                                 passed = review_decision == "✅ 通过"
                                 if passed:
-                                    experiment_id = db.save_experiment(
-                                        image_filename=task['image_filename'],
-                                        image_bytes=task['image_bytes'],
-                                        image_path=None,
-                                        image_reference_path=task['image_filename'],
-                                        raw_json=task.get('raw_json', ''),
-                                        reviewed_json=task.get('reviewed_json', ''),
-                                        formatted_markdown=task.get('formatted_markdown', ''),
-                                        iteration_count=task.get('iteration_count', 0),
-                                        max_iterations=task.get('max_iterations', 3),
-                                        review_passed=True,
-                                        review_issues=review_issues,
-                                        human_feedback=f"人工审核通过 | 备注: {feedback_text}",
-                                        review_passed_override=True
+                                    # ============= 三重条件校验 =============
+                                    conditions = db.validate_approval_conditions(task['task_id'])
+                                    conditions['user_approved'] = True  # 用户已点击通过按钮
+                                    
+                                    # 检查所有条件是否满足
+                                    all_conditions_met = all(conditions.values())
+                                    
+                                    # 记录审计日志
+                                    db.log_audit(
+                                        operation_type='APPROVE',
+                                        table_name='experiments',
+                                        record_id=None,
+                                        operator='user',
+                                        trigger_condition='用户点击通过审核按钮',
+                                        conditions_met=conditions,
+                                        details={
+                                            'task_id': task['task_id'],
+                                            'image_filename': task['image_filename'],
+                                            'feedback': feedback_text,
+                                            'all_conditions_met': all_conditions_met
+                                        }
                                     )
-                                    db.delete_task(task['task_id'])
-                                    st.success(f"审核通过！记录已保存 (ID: {experiment_id})")
+                                    
+                                    if all_conditions_met:
+                                        # 所有条件满足，执行入库操作
+                                        experiment_id = db.save_experiment(
+                                            image_filename=task['image_filename'],
+                                            image_bytes=task['image_bytes'],
+                                            image_path=None,
+                                            image_reference_path=task['image_filename'],
+                                            raw_json=task.get('raw_json', ''),
+                                            reviewed_json=task.get('reviewed_json', ''),
+                                            formatted_markdown=task.get('formatted_markdown', ''),
+                                            iteration_count=task.get('iteration_count', 0),
+                                            max_iterations=task.get('max_iterations', 3),
+                                            review_passed=True,
+                                            review_issues=review_issues,
+                                            human_feedback=f"人工审核通过 | 备注: {feedback_text}",
+                                            review_passed_override=True
+                                        )
+                                        
+                                        # 记录入库操作日志
+                                        db.log_audit(
+                                            operation_type='CREATE',
+                                            table_name='experiments',
+                                            record_id=experiment_id,
+                                            operator='user',
+                                            trigger_condition='人工审核通过',
+                                            conditions_met=conditions,
+                                            details={
+                                                'task_id': task['task_id'],
+                                                'experiment_id': experiment_id,
+                                                'image_filename': task['image_filename']
+                                            }
+                                        )
+                                        
+                                        db.delete_task(task['task_id'])
+                                        st.success(f"审核通过！记录已保存 (ID: {experiment_id})")
+                                    else:
+                                        # 条件不满足，拒绝入库
+                                        st.error("❌ 入库条件校验失败")
+                                        st.warning("条件检查结果：")
+                                        st.write(f"- Agent处理完成: {'✅' if conditions['agent_processing_completed'] else '❌'}")
+                                        st.write(f"- 任务状态待审核: {'✅' if conditions['status_pending_review'] else '❌'}")
+                                        st.write(f"- 用户已通过审核: {'✅' if conditions['user_approved'] else '❌'}")
+                                        st.error("请确保所有条件满足后再提交审核")
                                 else:
+                                    # 审核不通过，记录审计日志
+                                    db.log_audit(
+                                        operation_type='UPDATE',
+                                        table_name='processing_tasks',
+                                        record_id=task['task_id'],
+                                        operator='user',
+                                        trigger_condition='用户点击不通过审核',
+                                        conditions_met={'user_rejected': True},
+                                        details={
+                                            'task_id': task['task_id'],
+                                            'image_filename': task['image_filename'],
+                                            'feedback': feedback_text
+                                        }
+                                    )
+                                    
                                     db.update_task_status(
                                         task['task_id'], 
                                         'pending', 
@@ -1103,7 +1208,7 @@ with tab3:
                                     )
                                     st.info("已记录不通过原因，任务已重新提交处理")
                                 st.rerun()
-                    with col_delete[0]:
+                    with col_delete:
                         if st.button("🗑️ 删除", key=f"delete_{task['task_id']}", use_container_width=True):
                             db.delete_task(task['task_id'])
                             st.success("任务已删除")
