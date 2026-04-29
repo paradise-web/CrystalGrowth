@@ -72,7 +72,7 @@ class TaskWorker:
                     "needs_correction": False,
                     "correction_hints": "",
                     "iteration_count": 0,
-                    "max_iterations": 3,
+                    "max_iterations": st.session_state.get('max_iter', 3),
                     "review_issues": [],
                     "review_passed": False,
                     "human_feedback": "",
@@ -403,7 +403,10 @@ with tab1:
             os.environ["DASHSCOPE_API_KEY"] = api_key_input
         
         # 最大修正次数单独占一行
-        max_iter = st.slider("最大自修正次数", 1, 5, 3)
+        if 'max_iter' not in st.session_state:
+            st.session_state['max_iter'] = 3
+        max_iter = st.slider("最大自修正次数", 1, 5, st.session_state['max_iter'], key="max_iter_slider")
+        st.session_state['max_iter'] = max_iter
         
         st.markdown("</div>", unsafe_allow_html=True)
     
