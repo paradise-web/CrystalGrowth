@@ -218,6 +218,26 @@ class ApiService {
     }
   }
 
+  static Stream<String> sendChatMessageStream(String message) async* {
+    try {
+      var request = http.Request('POST', Uri.parse('$baseUrl/api/chat/stream?query=${Uri.encodeQueryComponent(message)}'));
+      var response = await request.send();
+      
+      if (response.statusCode == 200) {
+        String buffer = '';
+        await for (var chunk in response.stream.transform(utf8.decoder)) {
+          buffer += chunk;
+          yield buffer;
+        }
+      } else {
+        yield '请求失败，请稍后重试。';
+      }
+    } catch (e) {
+      print('流式消息发送失败: $e');
+      yield '连接失败，请稍后重试。';
+    }
+  }
+
   static Future<Map<String, dynamic>?> createTestData() async {
     try {
       var response = await http.post(

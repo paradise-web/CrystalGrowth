@@ -43,21 +43,41 @@ class _ChatPageState extends State<ChatPage> {
 
     _scrollToBottom();
 
-    // 调用真实的API
-    String aiResponse = "抱歉，获取回答失败，请稍后重试。";
+    // 调用流式API
     try {
-      var result = await ApiService.sendChatMessage(userInput);
-      aiResponse = result ?? "抱歉，获取回答失败，请稍后重试。";
+      String aiResponse = "";
+      await for (var chunk in ApiService.sendChatMessageStream(userInput)) {
+        aiResponse = chunk;
+        setState(() {
+          if (_chatHistory.isNotEmpty && _chatHistory.last["role"] == "assistant") {
+            _chatHistory.removeLast();
+          }
+          _chatHistory.add({"role": "assistant", "content": aiResponse});
+        });
+        _scrollToBottom();
+      }
     } catch (e) {
-      print('API调用失败: $e');
+      print('流式API调用失败: $e');
+      // 降级到非流式API
+      String aiResponse = "抱歉，获取回答失败，请稍后重试。";
+      try {
+        var result = await ApiService.sendChatMessage(userInput);
+        aiResponse = result ?? "抱歉，获取回答失败，请稍后重试。";
+      } catch (e) {
+        print('非流式API调用也失败: $e');
+      }
+      setState(() {
+        if (_chatHistory.isNotEmpty && _chatHistory.last["role"] == "assistant") {
+          _chatHistory.removeLast();
+        }
+        _chatHistory.add({"role": "assistant", "content": aiResponse});
+      });
+      _scrollToBottom();
     }
 
     setState(() {
-      _chatHistory.add({"role": "assistant", "content": aiResponse});
       _isTyping = false;
     });
-
-    _scrollToBottom();
   }
 
   void _clearChat() {

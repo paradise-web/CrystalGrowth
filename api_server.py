@@ -1,9 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Iterator
 import os
 import tempfile
 import shutil
@@ -11,6 +11,7 @@ import json
 import hashlib
 from datetime import datetime
 from pathlib import Path
+import asyncio
 
 # 导入现有模块
 from agent import create_lab_agent_graph
@@ -485,7 +486,7 @@ async def create_test_data():
 # 知识问答相关API
 @app.post("/api/chat", response_model=ProcessResult)
 async def chat(query: str):
-    """与AI进行知识问答"""
+    """与AI进行知识问答（非流式）"""
     try:
         import os
         from openai import OpenAI
@@ -510,10 +511,13 @@ async def chat(query: str):
         
         ai_response = response.choices[0].message.content
         
-        return ProcessResult(
-            success=True,
-            data={"answer": ai_response},
-            message="获取回答成功"
+        return JSONResponse(
+            content={
+                "success": True,
+                "data": {"answer": ai_response},
+                "message": "获取回答成功"
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
         )
     except Exception as e:
         # 如果API调用失败，返回模拟回答
@@ -525,18 +529,86 @@ async def chat(query: str):
         
         for question, answer in sample_questions.items():
             if question in query:
-                return ProcessResult(
-                    success=True,
-                    data={"answer": answer},
-                    message="获取回答成功(模拟)"
+                return JSONResponse(
+                    content={
+                        "success": True,
+                        "data": {"answer": answer},
+                        "message": "获取回答成功(模拟)"
+                    },
+                    headers={"Content-Type": "application/json; charset=utf-8"}
                 )
         
         default_answer = "作为晶体生长领域的专家，我可以为您解答相关问题。"
-        return ProcessResult(
-            success=True,
-            data={"answer": default_answer},
-            message="获取回答成功(模拟)"
+        return JSONResponse(
+            content={
+                "success": True,
+                "data": {"answer": default_answer},
+                "message": "获取回答成功(模拟)"
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
         )
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(query: str):
+    """与AI进行知识问答（流式回复）"""
+    async def generate_stream() -> Iterator[str]:
+        try:
+            import os
+            from openai import OpenAI
+            
+            API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-eec9cb28d6804d18aaddcdb4bdd9a1b9")
+            BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            
+            system_prompt = "你是一位晶体生长领域的专家，精通各种晶体生长方法、原理和技术。请以专业、准确、详细的方式回答关于晶体生长的问题，包括但不限于生长方法、参数优化、常见问题及解决方案等。"
+            
+            client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query}
+            ]
+            
+            stream = client.chat.completions.create(
+                model="qwen-plus",
+                messages=messages,
+                stream=True
+            )
+            
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            # 如果API调用失败，返回模拟回答
+            sample_questions = {
+                "什么是晶体生长": "晶体生长是指从气相、液相或固相物质中形成具有规则几何外形的晶体的过程。",
+                "晶体生长方法": "常见的晶体生长方法包括：1. 提拉法 2. 坩埚下降法 3. 水热法 4. 气相生长法",
+                "提高晶体质量": "提高晶体生长质量需要注意：控制温度梯度、优化生长速率、保持熔体纯净、控制气氛等",
+            }
+            
+            answer = ""
+            for question, ans in sample_questions.items():
+                if question in query:
+                    answer = ans
+                    break
+            
+            if not answer:
+                answer = "作为晶体生长领域的专家，我可以为您解答相关问题。"
+            
+            # 模拟流式输出
+            for i in range(0, len(answer), 5):
+                yield answer[i:i+5]
+                await asyncio.sleep(0.1)
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Type": "text/plain; charset=utf-8",
+            "Transfer-Encoding": "chunked"
+        }
+    )
 
 
 if __name__ == "__main__":
