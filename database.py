@@ -189,9 +189,9 @@ class ExperimentDB:
             if col_name not in columns:
                 try:
                     cursor.execute(f"ALTER TABLE processing_tasks ADD COLUMN {col_name} {col_type}")
-                    print(f"  ✅ Added column {col_name} to processing_tasks")
+                    print(f"  [OK] Added column {col_name} to processing_tasks")
                 except sqlite3.OperationalError as e:
-                    print(f"  ⚠️ Failed to add column {col_name}: {e}")
+                    print(f"  [WARN] Failed to add column {col_name}: {e}")
         
         conn.commit()
     
@@ -246,7 +246,7 @@ class ExperimentDB:
             实验记录的ID
         """
         try:
-            print(f"🔍 [DB DEBUG] save_experiment 开始")
+            print(f"[INFO] [DB DEBUG] save_experiment 开始")
             print(f"  - image_filename: {image_filename}")
             print(f"  - image_bytes 长度: {len(image_bytes) if image_bytes else 0}")
             print(f"  - image_path: {image_path}")
@@ -265,7 +265,7 @@ class ExperimentDB:
             
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            print(f"  ✅ 数据库连接成功")
+            print(f"  [OK] 数据库连接成功")
             
             # 检查是否已存在相同图片的记录
             cursor.execute("SELECT id FROM experiments WHERE image_hash = ?", (image_hash,))
@@ -331,7 +331,7 @@ class ExperimentDB:
                         update_fields.append("key_params_text = ?")
                         update_values.append(key_params_text)
                     except Exception as e:
-                        print(f"    ⚠️ 解析 reviewed_json 失败: {e}")
+                        print(f"    [WARN] 解析 reviewed_json 失败: {e}")
                 elif raw_json is not None:
                     try:
                         raw_data = json.loads(raw_json)
@@ -339,7 +339,7 @@ class ExperimentDB:
                         update_fields.append("key_params_text = ?")
                         update_values.append(key_params_text)
                     except Exception as e:
-                        print(f"    ⚠️ 解析 raw_json 失败: {e}")
+                        print(f"    [WARN] 解析 raw_json 失败: {e}")
                 
                 # 总是更新 updated_at 时间戳
                 update_fields.append("updated_at = CURRENT_TIMESTAMP")
@@ -352,7 +352,7 @@ class ExperimentDB:
                     query = f"UPDATE experiments SET {', '.join(update_fields)} WHERE id = ?"
                     print(f"    - SQL: {query[:100]}...")
                     cursor.execute(query, update_values)
-                    print(f"    ✅ UPDATE 执行成功，影响行数: {cursor.rowcount}")
+                    print(f"    [OK] UPDATE 执行成功，影响行数: {cursor.rowcount}")
             else:
                 # 提取关键参数文本（用于增强搜索）
                 key_params_text = ""
@@ -361,13 +361,13 @@ class ExperimentDB:
                         reviewed_data = json.loads(reviewed_json)
                         key_params_text = self._extract_key_params_text(reviewed_data)
                     except Exception as e:
-                        print(f"    ⚠️ 解析 reviewed_json 失败: {e}")
+                        print(f"    [WARN] 解析 reviewed_json 失败: {e}")
                 if not key_params_text and raw_json:
                     try:
                         raw_data = json.loads(raw_json)
                         key_params_text = self._extract_key_params_text(raw_data)
                     except Exception as e:
-                        print(f"    ⚠️ 解析 raw_json 失败: {e}")
+                        print(f"    [WARN] 解析 raw_json 失败: {e}")
                 
                 # 插入新记录
                 print(f"    📥 执行 INSERT...")
@@ -388,16 +388,16 @@ class ExperimentDB:
                     notes, key_params_text
                 ))
                 experiment_id = cursor.lastrowid
-                print(f"    ✅ INSERT 执行成功，新记录ID: {experiment_id}")
+                print(f"    [OK] INSERT 执行成功，新记录ID: {experiment_id}")
             
             conn.commit()
-            print(f"  ✅ 事务提交成功")
+            print(f"  [OK] 事务提交成功")
             conn.close()
             
-            print(f"✅ [DB DEBUG] save_experiment 完成，experiment_id={experiment_id}")
+            print(f"[OK] [DB DEBUG] save_experiment 完成，experiment_id={experiment_id}")
             return experiment_id
         except Exception as e:
-            print(f"❌ [DB DEBUG] save_experiment 失败: {type(e).__name__}: {str(e)}")
+            print(f"[ERROR] [DB DEBUG] save_experiment 失败: {type(e).__name__}: {str(e)}")
             import traceback
             print(f"   详细错误: {traceback.format_exc()}")
             raise

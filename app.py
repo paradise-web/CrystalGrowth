@@ -124,7 +124,7 @@ class TaskWorker:
                             max_iterations=final_state.get("max_iterations", 3),
                             review_issues=review_issues_json
                         )
-                        print(f"✅ [TaskWorker] 任务 {task_id} 已进入待审批队列")
+                        print(f"[OK] [TaskWorker] 任务 {task_id} 已进入待审批队列")
                     else:
                         # 无需人工审核（已通过人工审核覆盖），直接完成
                         self.db.update_task_status(
@@ -139,7 +139,7 @@ class TaskWorker:
                             max_iterations=final_state.get("max_iterations", 3),
                             review_issues=review_issues_json
                         )
-                        print(f"✅ [TaskWorker] 任务 {task_id} 处理完成")
+                        print(f"[OK] [TaskWorker] 任务 {task_id} 处理完成")
                 else:
                     self.db.update_task_status(
                         task_id, 
@@ -282,7 +282,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
     """保存实验记录到数据库"""
 
     try:
-        print(f"🔍 [DEBUG] save_experiment_to_db 开始")
+        print(f"[INFO] [DEBUG] save_experiment_to_db 开始")
         print(f"  - file_name_to_use: {file_name_to_use}")
         print(f"  - image_bytes 长度: {len(image_bytes) if image_bytes else 0}")
         print(f"  - image_path: {image_path}")
@@ -297,7 +297,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         print(f"  - 有 formatted_markdown: {has_markdown}")
         
         db = get_db()
-        print(f"  ✅ 数据库连接成功")
+        print(f"  [OK] 数据库连接成功")
         
         # 保存图片到持久化目录
         if image_bytes:
@@ -311,7 +311,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
             if not saved_image_path.exists():
                 with open(saved_image_path, "wb") as f:
                     f.write(image_bytes)
-                print(f"  ✅ 图片保存成功")
+                print(f"  [OK] 图片保存成功")
             else:
                 print(f"  ℹ️ 图片已存在，跳过保存")
         
@@ -319,7 +319,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         else:
             saved_image_path = None
             image_reference_path = None
-            print(f"  ⚠️ 没有图片数据")
+            print(f"  [WARN] 没有图片数据")
         
         # 检查是否已存在相同图片的记录
         image_hash_for_check = hashlib.sha256(image_bytes).hexdigest() if image_bytes else ""
@@ -328,7 +328,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         # 如果存在相同图片的记录，生成新的文件名（添加时间戳）
         final_file_name = file_name_to_use
         if existing_record:
-            print(f"  ⚠️ 发现重复记录 (ID: {existing_record['id']})，将重命名文件")
+            print(f"  [WARN] 发现重复记录 (ID: {existing_record['id']})，将重命名文件")
             # 生成带时间戳的新文件名
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_stem = Path(file_name_to_use).stem
@@ -354,7 +354,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
             review_passed_override=final_state.get("review_passed_override"),
             force_new=True  # 强制插入新记录
         )
-        print(f"  ✅ db.save_experiment 返回: {experiment_id}")
+        print(f"  [OK] db.save_experiment 返回: {experiment_id}")
         
         # 保存反馈历史
         feedback_history = st.session_state.get('feedback_history', [])
@@ -362,10 +362,10 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         for feedback in feedback_history:
             db.add_feedback(experiment_id, feedback, "human")
         
-        print(f"✅ [DEBUG] save_experiment_to_db 完成，experiment_id={experiment_id}")
+        print(f"[OK] [DEBUG] save_experiment_to_db 完成，experiment_id={experiment_id}")
         return experiment_id
     except Exception as e:
-        print(f"❌ [DEBUG] save_experiment_to_db 失败: {type(e).__name__}: {str(e)}")
+        print(f"[ERROR] [DEBUG] save_experiment_to_db 失败: {type(e).__name__}: {str(e)}")
         import traceback
         print(f"   详细错误: {traceback.format_exc()}")
         st.error(f"保存到数据库失败: {str(e)}")
@@ -373,7 +373,7 @@ def save_experiment_to_db(final_state: dict, file_name_to_use: str, image_bytes:
         return None
 
 # ================= 主标签页 =================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 首页", "📤 文件上传", "🔄 待审批", "📚 历史记录", "📊 统计信息" , "💬 知识问答" ])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 首页", "📤 文件上传", "🔄 待审批", "📚 历史记录", "[STATS] 统计信息" , "💬 知识问答" ])
 
 # 全局变量
 api_key_input = ""
@@ -384,7 +384,7 @@ db = get_db()
 
 # 首页
 with tab1:
-    st.markdown("<h3 class='main-title'>🔍 晶体生长实验记录助手</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 class='main-title'>[INFO] 晶体生长实验记录助手</h3>", unsafe_allow_html=True)
     
     # 悬浮框：API Key 和最大修正次数设置
     with st.container():
@@ -432,7 +432,7 @@ with tab1:
     
     with col2:
         st.markdown("<div class='flow-step'>", unsafe_allow_html=True)
-        st.subheader("🔬 化学审核")
+        st.subheader("[LAB] 化学审核")
         st.write("Qwen-Plus 模型审核提取的数据，确保化学合理性和准确性。")
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -537,10 +537,10 @@ with tab2:
                     elif status == 'processing':
                         st.progress(task['progress'], text=f"处理中: {task['current_step']}")
                     elif status == 'completed':
-                        st.status("✅ 处理完成，待审批", state="complete")
+                        st.status("[OK] 处理完成，待审批", state="complete")
                         st.info("请手动切换到「� 待审批」标签页进行审核")
                     elif status == 'failed':
-                        st.status("❌ 处理失败", state="error")
+                        st.status("[ERROR] 处理失败", state="error")
                         st.error(task.get('error_message', '未知错误'))
                         if st.button("🔄 重新处理", key=f"retry_{task['task_id']}"):
                             db.update_task_status(task['task_id'], 'pending', progress=0)
@@ -559,14 +559,14 @@ with tab2:
                     st.warning(f"确定要删除选中的 {len(selected_tasks)} 个任务吗？此操作不可撤销。")
                     col_confirm, col_cancel = st.columns([1, 1])
                     with col_confirm:
-                        if st.button("✅ 确认删除", key=f"confirm_btn_{confirm_key}", use_container_width=True):
+                        if st.button("[OK] 确认删除", key=f"confirm_btn_{confirm_key}", use_container_width=True):
                             for task_id in selected_tasks:
                                 db.delete_task(task_id)
                             st.success(f"已成功删除 {len(selected_tasks)} 个任务")
                             st.session_state[confirm_key] = False
                             st.rerun()
                     with col_cancel:
-                        if st.button("❌ 取消", key=f"cancel_btn_{confirm_key}", use_container_width=True):
+                        if st.button("[ERROR] 取消", key=f"cancel_btn_{confirm_key}", use_container_width=True):
                             st.session_state[confirm_key] = False
                             st.rerun()
                 else:
@@ -702,7 +702,7 @@ with tab2:
                                     })
                                 elif node_name == "reviewer":
                                     execution_logs.append({
-                                        "icon": "🔬",
+                                        "icon": "[LAB]",
                                         "message": "正在重新审核数据...",
                                         "type": "info"
                                     })
@@ -743,7 +743,7 @@ with tab2:
                                 log_placeholder.markdown(log_html, unsafe_allow_html=True)
                         
                         progress_bar.progress(1.0)
-                        status_placeholder.markdown("**✅ 重新处理完成！**")
+                        status_placeholder.markdown("**[OK] 重新处理完成！**")
                         st.markdown("</div>", unsafe_allow_html=True)
                         
                         # 保存最终状态：无论审核是否通过，都应该交由人工审核
@@ -813,7 +813,7 @@ with tab2:
                 iteration_count = review_state.get("iteration_count", 0)
                 
                 # 显示统计信息
-                st.markdown("### 📊 审核概览")
+                st.markdown("### [STATS] 审核概览")
                 col_stat1, col_stat2 = st.columns(2)
                 with col_stat1:
                     st.metric("迭代次数", f"{iteration_count} / {max_iter}")
@@ -821,7 +821,7 @@ with tab2:
                     st.metric("发现问题", f"{len(review_issues)} 个")
                 
                 # 显示问题详情
-                st.markdown("### 🔍 发现的问题")
+                st.markdown("### [INFO] 发现的问题")
                 
                 if review_issues:
                     # 按严重程度分组
@@ -830,7 +830,7 @@ with tab2:
                     infos = [i for i in review_issues if i.get("severity") == "info"]
                     
                     if errors:
-                        st.markdown("#### ❌ 严重错误")
+                        st.markdown("#### [ERROR] 严重错误")
                         for idx, issue in enumerate(errors, 1):
                             with st.expander(f"错误 #{idx}: {issue.get('description', '')[:60]}...", expanded=idx==1):
                                 st.error(f"**描述**: {issue.get('description', '-')}")
@@ -840,7 +840,7 @@ with tab2:
                                     st.info(f"💡 **建议**: {issue.get('suggestion')}")
                     
                     if warnings:
-                        st.markdown("#### ⚠️ 警告")
+                        st.markdown("#### [WARN] 警告")
                         for idx, issue in enumerate(warnings, 1):
                             with st.expander(f"警告 #{idx}: {issue.get('description', '')[:60]}...", expanded=False):
                                 st.warning(f"**描述**: {issue.get('description', '-')}")
@@ -860,7 +860,7 @@ with tab2:
                 # 审核选项（使用动态 key，基于会话计数器）
                 review_decision = st.radio(
                     "请选择审核结果：",
-                    ["✅ 通过审核，继续生成报告", "❌ 不通过，需要重新处理"],
+                    ["[OK] 通过审核，继续生成报告", "[ERROR] 不通过，需要重新处理"],
                     key=f"review_decision_{session_counter}",
                     index=0
                 )
@@ -888,13 +888,13 @@ with tab2:
                 )
                 
                 # 提交按钮
-                if st.button("✅ 提交审核", type="primary", use_container_width=True):
+                if st.button("[OK] 提交审核", type="primary", use_container_width=True):
                     # 更新状态
                     review_state = st.session_state.get('human_review_state', {})
-                    review_passed = review_decision.startswith("✅")
+                    review_passed = review_decision.startswith("[OK]")
                     
                     # 调试信息
-                    print(f"🔍 [审核提交] 开始")
+                    print(f"[INFO] [审核提交] 开始")
                     print(f"  - review_passed: {review_passed}")
                     print(f"  - review_state keys: {list(review_state.keys())}")
                     print(f"  - review_state.get('raw_json') 长度: {len(review_state.get('raw_json', ''))}")
@@ -1023,7 +1023,7 @@ with tab2:
                     if raw_json:
                         try:
                             preview_data = json.loads(raw_json.replace("```json", "").replace("```", "").strip())
-                            with st.expander("🔍 查看原始 JSON 数据", expanded=False):
+                            with st.expander("[INFO] 查看原始 JSON 数据", expanded=False):
                                 st.json(preview_data)
                         except Exception as e:
                             pass
@@ -1050,7 +1050,7 @@ with tab2:
                                 st.markdown(markdown_preview, unsafe_allow_html=True)
                             
                             # 同时提供 JSON 源码查看选项（折叠）
-                            with st.expander("🔍 查看原始 JSON 数据", expanded=False):
+                            with st.expander("[INFO] 查看原始 JSON 数据", expanded=False):
                                 st.json(preview_data)
                         except Exception as e:
                             st.error(f"数据解析失败: {str(e)}")
@@ -1100,7 +1100,7 @@ with tab3:
                     with col_decision:
                         review_decision = st.radio(
                             "审核结果",
-                            ["✅ 通过", "❌ 不通过"],
+                            ["[OK] 通过", "[ERROR] 不通过"],
                             key=f"review_decision_{idx}",
                             horizontal=True
                         )
@@ -1113,11 +1113,11 @@ with tab3:
                     
                     col_submit, col_delete = st.columns([3, 1])
                     with col_submit:
-                        if st.button(f"✅ 提交审核", key=f"submit_{task['task_id']}", type="primary", use_container_width=True):
+                        if st.button(f"[OK] 提交审核", key=f"submit_{task['task_id']}", type="primary", use_container_width=True):
                             if not feedback_text:
                                 st.error("请输入审核备注")
                             else:
-                                passed = review_decision == "✅ 通过"
+                                passed = review_decision == "[OK] 通过"
                                 if passed:
                                     # ============= 三重条件校验 =============
                                     conditions = db.validate_approval_conditions(task['task_id'])
@@ -1179,11 +1179,11 @@ with tab3:
                                         st.success(f"审核通过！记录已保存 (ID: {experiment_id})")
                                     else:
                                         # 条件不满足，拒绝入库
-                                        st.error("❌ 入库条件校验失败")
+                                        st.error("[ERROR] 入库条件校验失败")
                                         st.warning("条件检查结果：")
-                                        st.write(f"- Agent处理完成: {'✅' if conditions['agent_processing_completed'] else '❌'}")
-                                        st.write(f"- 任务状态待审核: {'✅' if conditions['status_pending_review'] else '❌'}")
-                                        st.write(f"- 用户已通过审核: {'✅' if conditions['user_approved'] else '❌'}")
+                                        st.write(f"- Agent处理完成: {'[OK]' if conditions['agent_processing_completed'] else '[ERROR]'}")
+                                        st.write(f"- 任务状态待审核: {'[OK]' if conditions['status_pending_review'] else '[ERROR]'}")
+                                        st.write(f"- 用户已通过审核: {'[OK]' if conditions['user_approved'] else '[ERROR]'}")
                                         st.error("请确保所有条件满足后再提交审核")
                                 else:
                                     # 审核不通过，记录审计日志
@@ -1238,7 +1238,7 @@ with tab4:
             # 使用session_state保存搜索框内容
             if 'history_search' not in st.session_state:
                 st.session_state['history_search'] = ""
-            search_query = st.text_input("🔍 搜索", placeholder="搜索文件名、化学式、日期...", value=st.session_state['history_search'], key="history_search", on_change=lambda: st.session_state.pop('history_page', None))
+            search_query = st.text_input("[INFO] 搜索", placeholder="搜索文件名、化学式、日期...", value=st.session_state['history_search'], key="history_search", on_change=lambda: st.session_state.pop('history_page', None))
         with col_search2:
             # 使用session_state保存筛选状态
             if 'history_filter' not in st.session_state:
@@ -1275,7 +1275,7 @@ with tab4:
         page_num = st.session_state.get('history_page', 1)
         
         # 获取记录
-        print(f"🔍 [历史记录查询] filter_review_passed: {filter_review_passed}, search_query: {search_query}, order_desc: {order_desc}")
+        print(f"[INFO] [历史记录查询] filter_review_passed: {filter_review_passed}, search_query: {search_query}, order_desc: {order_desc}")
         
         total_count = db.get_experiment_count(
             filter_review_passed=filter_review_passed,
@@ -1295,7 +1295,7 @@ with tab4:
             print(f"  - 第一条记录ID: {experiments[0].get('id')}, 文件名: {experiments[0].get('image_filename')}, review_passed: {experiments[0].get('review_passed')}")
         
         # 显示统计
-        st.info(f"📊 共找到 {total_count} 条记录，当前显示第 {(page_num-1)*page_size+1}-{min(page_num*page_size, total_count)} 条")
+        st.info(f"[STATS] 共找到 {total_count} 条记录，当前显示第 {(page_num-1)*page_size+1}-{min(page_num*page_size, total_count)} 条")
         
         # 分页控制
         if total_count > page_size:
@@ -1321,7 +1321,7 @@ with tab4:
             for exp in experiments:
                 with st.expander(
                     f"📄 {exp['image_filename']} | "
-                    f"{'✅' if exp['review_passed'] else '⚠️'} | "
+                    f"{'[OK]' if exp['review_passed'] else '[WARN]'} | "
                     f"{exp['created_at'][:19] if exp['created_at'] else '未知时间'}",
                     expanded=False
                 ):
@@ -1332,7 +1332,7 @@ with tab4:
                         st.markdown(f"**创建时间**: {exp['created_at']}")
                         st.markdown(f"**更新时间**: {exp['updated_at']}")
                         st.markdown(f"**迭代次数**: {exp['iteration_count']} / {exp['max_iterations']}")
-                        st.markdown(f"**审核状态**: {'✅ 通过' if exp['review_passed'] else '⚠️ 未通过'}")
+                        st.markdown(f"**审核状态**: {'[OK] 通过' if exp['review_passed'] else '[WARN] 未通过'}")
                         
                         if exp.get('review_issues'):
                             issue_count = len(exp['review_issues'])
@@ -1413,7 +1413,7 @@ with tab4:
                     # 审核问题
                     if exp.get('review_issues'):
                         st.markdown("<div class='card'>", unsafe_allow_html=True)
-                        st.markdown("#### 🔍 审核问题")
+                        st.markdown("#### [INFO] 审核问题")
                         for issue in exp['review_issues']:
                             severity = issue.get('severity', 'info')
                             if severity == 'error':
@@ -1439,7 +1439,7 @@ with tab4:
                         st.markdown("</div>", unsafe_allow_html=True)
                     
                     # 原始数据（直接显示，不再嵌套 expander）
-                    st.markdown("#### 🔍 原始 JSON 数据")
+                    st.markdown("#### [INFO] 原始 JSON 数据")
                     if exp.get('raw_json'):
                         try:
                             raw_data = json.loads(exp['raw_json'].replace("```json", "").replace("```", "").strip())
@@ -1450,7 +1450,7 @@ with tab4:
                     # 关闭按钮
                     col_close = st.columns([1, 2, 1])[1]
                     with col_close:
-                        if st.button("❌ 关闭详情", key=f"close_detail_{exp['id']}"):
+                        if st.button("[ERROR] 关闭详情", key=f"close_detail_{exp['id']}"):
                             # 清除相关状态
                             st.session_state['show_detail_modal'] = False
                             st.session_state['current_detail_exp_id'] = None
@@ -1463,7 +1463,7 @@ with tab4:
 
 # 统计信息页
 with tab5:
-    st.markdown("<h1 class='main-title'>📊 统计信息</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>[STATS] 统计信息</h1>", unsafe_allow_html=True)
     
     try:
         db = get_db()
@@ -1533,7 +1533,7 @@ with tab5:
         
         # 审核状态分布
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.markdown("<h2 class='card-title'>📊 审核状态分布</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 class='card-title'>[STATS] 审核状态分布</h2>", unsafe_allow_html=True)
         
         status_stats = db.get_status_statistics()
         
@@ -1711,7 +1711,7 @@ with tab6:
             # 显示结果
             with col2:
                 st.markdown("---")
-                st.success("✅ 处理完成！")
+                st.success("[OK] 处理完成！")
                 
                 # 显示统计信息
                 iteration_count = final_state.get("iteration_count", 0)
@@ -1728,14 +1728,14 @@ with tab6:
                 with stat_col1:
                     st.metric("🔄 迭代次数", f"{iteration_count} / {max_iter}")
                 with stat_col2:
-                    status_icon = "✅" if review_passed else "⚠️"
-                    st.metric("📊 审核状态", status_icon + ("通过" if review_passed else "未通过"))
+                    status_icon = "[OK]" if review_passed else "[WARN]"
+                    st.metric("[STATS] 审核状态", status_icon + ("通过" if review_passed else "未通过"))
                 with stat_col3:
                     issue_count = len(review_issues)
-                    st.metric("🔍 发现问题", f"{issue_count} 个")
+                    st.metric("[INFO] 发现问题", f"{issue_count} 个")
                 
                 # 选项卡：Markdown 视图 / 源码视图 / 审核日志
-                tab1, tab2, tab3 = st.tabs(["📄 渲染视图", "📝 Markdown 源码", "🔍 审核日志"])
+                tab1, tab2, tab3 = st.tabs(["📄 渲染视图", "📝 Markdown 源码", "[INFO] 审核日志"])
                 
                 markdown_content = final_state.get("formatted_markdown", "")
                 
@@ -1745,7 +1745,7 @@ with tab6:
                         display_md = markdown_content.replace(f"![原始记录含表征]({file_name_to_use})", "*(原始图片见左侧)*")
                         st.markdown(display_md, unsafe_allow_html=True)
                     else:
-                        st.warning("⚠️ 未生成 Markdown 内容")
+                        st.warning("[WARN] 未生成 Markdown 内容")
                 
                 with tab2:
                     if markdown_content:
@@ -1757,7 +1757,7 @@ with tab6:
                             mime="text/markdown"
                         )
                     else:
-                        st.warning("⚠️ 未生成 Markdown 内容")
+                        st.warning("[WARN] 未生成 Markdown 内容")
                 
                 with tab3:
                     st.markdown("### 📋 详细审核报告")
@@ -1769,7 +1769,7 @@ with tab6:
                         infos = [i for i in review_issues if i.get("severity") == "info"]
                         
                         if errors:
-                            st.markdown("#### ❌ 严重错误")
+                            st.markdown("#### [ERROR] 严重错误")
                             for idx, issue in enumerate(errors, 1):
                                 with st.expander(f"错误 #{idx}: {issue.get('description', '')[:50]}...", expanded=False):
                                     st.error(f"**描述**: {issue.get('description', '-')}")
@@ -1779,7 +1779,7 @@ with tab6:
                                         st.info(f"💡 **建议**: {issue.get('suggestion')}")
                         
                         if warnings:
-                            st.markdown("#### ⚠️ 警告")
+                            st.markdown("#### [WARN] 警告")
                             for idx, issue in enumerate(warnings, 1):
                                 with st.expander(f"警告 #{idx}: {issue.get('description', '')[:50]}...", expanded=False):
                                     st.warning(f"**描述**: {issue.get('description', '-')}")
