@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - ./experiments.db:/app/experiments.db
+    restart: always
+    environment:
+      - PYTHONPATH=/app
+      - DASHSCOPE_API_KEY=sk-eec9cb28d6804d18aaddcdb4bdd9a1b9

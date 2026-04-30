@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/experiment.dart';
 import '../models/task.dart';
 import '../models/statistics.dart';
@@ -34,13 +35,23 @@ class MultiUploadResult {
 }
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000';
+  static const String _defaultBaseUrl = 'http://localhost:8000';
+
+  static Future<String> get baseUrl async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('server_url') ?? _defaultBaseUrl;
+  }
+
+  static Future<Uri> getUri(String path) async {
+    final url = await baseUrl;
+    return Uri.parse('$url$path');
+  }
 
   static Future<TaskResponse?> uploadImage(File imageFile) async {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/upload'),
+        await getUri('/api/upload'),
       );
       request.files.add(
         await http.MultipartFile.fromPath('file', imageFile.path),
@@ -63,7 +74,7 @@ class ApiService {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/upload'),
+        await getUri('/api/upload'),
       );
       request.files.add(
         http.MultipartFile.fromBytes(
@@ -88,9 +99,8 @@ class ApiService {
 
   static Future<List<Task>?> getTasks() async {
     try {
-      var response = await http.get(Uri.parse('$baseUrl/api/tasks'));
+      var response = await http.get(await getUri('/api/tasks'));
       if (response.statusCode == 200) {
-        // 使用utf8解码确保正确处理中文字符
         var responseBody = utf8.decode(response.bodyBytes);
         var jsonResponse = json.decode(responseBody);
         var tasksJson = jsonResponse['tasks'] as List;
@@ -105,7 +115,7 @@ class ApiService {
 
   static Future<Task?> getTask(String taskId) async {
     try {
-      var response = await http.get(Uri.parse('$baseUrl/api/task/$taskId'));
+      var response = await http.get(await getUri('/api/task/$taskId'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         var jsonResponse = json.decode(responseBody);
@@ -120,7 +130,7 @@ class ApiService {
 
   static Future<List<Experiment>?> getExperiments() async {
     try {
-      var response = await http.get(Uri.parse('$baseUrl/api/experiments'));
+      var response = await http.get(await getUri('/api/experiments'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         var jsonResponse = json.decode(responseBody);
@@ -136,7 +146,7 @@ class ApiService {
 
   static Future<Experiment?> getExperiment(int experimentId) async {
     try {
-      var response = await http.get(Uri.parse('$baseUrl/api/experiment/$experimentId'));
+      var response = await http.get(await getUri('/api/experiment/$experimentId'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         var jsonResponse = json.decode(responseBody);
@@ -152,7 +162,7 @@ class ApiService {
   static Future<bool> reviewExperiment(int experimentId, bool reviewPassed, String feedback) async {
     try {
       var response = await http.post(
-        Uri.parse('$baseUrl/api/experiment/$experimentId/review'),
+        await getUri('/api/experiment/$experimentId/review'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'experiment_id': experimentId,
@@ -173,9 +183,7 @@ class ApiService {
 
   static Future<bool> deleteExperiment(int experimentId) async {
     try {
-      var response = await http.delete(
-        Uri.parse('$baseUrl/api/experiment/$experimentId'),
-      );
+      var response = await http.delete(await getUri('/api/experiment/$experimentId'));
       if (response.statusCode == 200) {
         var jsonResponse = json.decode(response.body);
         return jsonResponse['success'] ?? false;
@@ -189,9 +197,7 @@ class ApiService {
 
   static Future<bool> deleteTask(String taskId) async {
     try {
-      var response = await http.delete(
-        Uri.parse('$baseUrl/api/task/$taskId'),
-      );
+      var response = await http.delete(await getUri('/api/task/$taskId'));
       if (response.statusCode == 200) {
         var jsonResponse = json.decode(response.body);
         return jsonResponse['success'] ?? false;
@@ -205,7 +211,7 @@ class ApiService {
 
   static Future<Statistics?> getStatistics() async {
     try {
-      var response = await http.get(Uri.parse('$baseUrl/api/statistics'));
+      var response = await http.get(await getUri('/api/statistics'));
       if (response.statusCode == 200) {
         var jsonResponse = json.decode(response.body);
         return Statistics.fromJson(jsonResponse['statistics']);
@@ -219,9 +225,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> saveTaskToExperiments(String taskId) async {
     try {
-      var response = await http.post(
-        Uri.parse('$baseUrl/api/task/$taskId/save_to_experiments'),
-      );
+      var response = await http.post(await getUri('/api/task/$taskId/save_to_experiments'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         return json.decode(responseBody);
@@ -235,9 +239,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> rejectTask(String taskId, String feedback) async {
     try {
-      var response = await http.post(
-        Uri.parse('$baseUrl/api/task/$taskId/reject?feedback=${Uri.encodeQueryComponent(feedback)}'),
-      );
+      var response = await http.post(await getUri('/api/task/$taskId/reject?feedback=${Uri.encodeQueryComponent(feedback)}'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         return json.decode(responseBody);
@@ -251,9 +253,7 @@ class ApiService {
 
   static Future<String?> sendChatMessage(String message) async {
     try {
-      var response = await http.post(
-        Uri.parse('$baseUrl/api/chat?query=${Uri.encodeQueryComponent(message)}'),
-      );
+      var response = await http.post(await getUri('/api/chat?query=${Uri.encodeQueryComponent(message)}'));
       if (response.statusCode == 200) {
         var responseBody = utf8.decode(response.bodyBytes);
         var jsonResponse = json.decode(responseBody);
@@ -270,7 +270,7 @@ class ApiService {
 
   static Stream<String> sendChatMessageStream(String message) async* {
     try {
-      var request = http.Request('POST', Uri.parse('$baseUrl/api/chat/stream?query=${Uri.encodeQueryComponent(message)}'));
+      var request = http.Request('POST', await getUri('/api/chat/stream?query=${Uri.encodeQueryComponent(message)}'));
       var response = await request.send();
       
       if (response.statusCode == 200) {
@@ -290,9 +290,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> createTestData() async {
     try {
-      var response = await http.post(
-        Uri.parse('$baseUrl/api/create_test_data'),
-      );
+      var response = await http.post(await getUri('/api/create_test_data'));
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
@@ -303,10 +301,7 @@ class ApiService {
     }
   }
 
-  static Future<MultiUploadResult?> uploadMultipleImages(
-    List<File> imageFiles,
-  ) async {
-    // Web平台不支持dart:io，使用Web上传方法
+  static Future<MultiUploadResult?> uploadMultipleImages(List<File> imageFiles) async {
     if (kIsWeb) {
       return uploadMultipleWebImages(
         await Future.wait(imageFiles.map((f) => f.readAsBytes())),
@@ -315,15 +310,10 @@ class ApiService {
     }
     
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/api/upload/multiple'),
-      );
+      var request = http.MultipartRequest('POST', await getUri('/api/upload/multiple'));
 
       for (var file in imageFiles) {
-        request.files.add(
-          await http.MultipartFile.fromPath('files', file.path),
-        );
+        request.files.add(await http.MultipartFile.fromPath('files', file.path));
       }
 
       var streamedResponse = await request.send();
@@ -341,24 +331,16 @@ class ApiService {
     }
   }
 
-  static Future<MultiUploadResult?> uploadMultipleWebImages(
-    List<Uint8List> imageBytesList,
-    List<String> fileNames,
-  ) async {
+  static Future<MultiUploadResult?> uploadMultipleWebImages(List<Uint8List> imageBytesList, List<String> fileNames) async {
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/api/upload/multiple'),
-      );
+      var request = http.MultipartRequest('POST', await getUri('/api/upload/multiple'));
 
       for (int i = 0; i < imageBytesList.length; i++) {
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'files',
-            imageBytesList[i],
-            filename: fileNames[i],
-          ),
-        );
+        request.files.add(http.MultipartFile.fromBytes(
+          'files',
+          imageBytesList[i],
+          filename: fileNames[i],
+        ));
       }
 
       var streamedResponse = await request.send();
