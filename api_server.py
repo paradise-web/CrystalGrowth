@@ -167,41 +167,37 @@ async def upload_image(
     file: UploadFile = File(...)
 ):
     """上传实验记录图片并创建处理任务"""
-    print(f"📥 收到上传请求: filename={file.filename}, content_type={file.content_type}")
+    print(f"[UPLOAD] 收到上传请求: filename={file.filename}, content_type={file.content_type}")
     
-    # 放宽文件类型验证
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
     filename = file.filename or "image.jpg"
     
-    # 检查文件扩展名
     if file.content_type not in allowed_types:
-        print(f"⚠️ content_type {file.content_type} 不在允许列表中，尝试检查文件扩展名")
-        # 检查文件扩展名
+        print(f"[WARN] content_type {file.content_type} 不在允许列表中，尝试检查文件扩展名")
         if not (filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg') or filename.lower().endswith('.png')):
-            print(f"❌ 文件扩展名也不匹配，拒绝上传")
+            print(f"[ERROR] 文件扩展名也不匹配，拒绝上传")
             raise HTTPException(status_code=400, detail="不支持的文件类型，仅支持 JPG/PNG")
-        print(f"✅ 文件扩展名匹配，继续处理")
+        print(f"[INFO] 文件扩展名匹配，继续处理")
     
     try:
         image_bytes = await file.read()
-        print(f"✅ 成功读取文件，大小: {len(image_bytes)} bytes")
+        print(f"[INFO] 成功读取文件，大小: {len(image_bytes)} bytes")
         
         if len(image_bytes) == 0:
-            print(f"❌ 文件为空")
+            print(f"[ERROR] 文件为空")
             raise HTTPException(status_code=400, detail="上传的文件为空")
         
-        # 检查文件大小限制 (10MB)
         max_size = 10 * 1024 * 1024
         if len(image_bytes) > max_size:
-            print(f"❌ 文件过大: {len(image_bytes)} > {max_size}")
+            print(f"[ERROR] 文件过大: {len(image_bytes)} > {max_size}")
             raise HTTPException(status_code=400, detail="文件过大，最大支持 10MB")
         
         db = get_db()
         task_id = db.create_processing_task(filename, image_bytes)
-        print(f"✅ 任务创建成功: task_id={task_id}")
+        print(f"[INFO] 任务创建成功: task_id={task_id}")
         
         background_tasks.add_task(process_image_task, task_id, filename, image_bytes)
-        print(f"✅ 后台任务已添加")
+        print(f"[INFO] 后台任务已添加")
         
         return TaskResponse(
             task_id=task_id,
@@ -214,7 +210,7 @@ async def upload_image(
     except Exception as e:
         import traceback
         error_detail = f"上传失败: {str(e)}\n{traceback.format_exc()}"
-        print(f"❌ {error_detail}")
+        print(f"[ERROR] {error_detail}")
         raise HTTPException(status_code=500, detail=error_detail)
 
 @app.get("/api/tasks")
@@ -462,7 +458,6 @@ async def create_test_data():
     """创建一些测试数据用于调试"""
     db = get_db()
     
-    # 创建一些测试实验记录
     for i in range(3):
         exp_id = db.save_experiment(
             image_filename=f"测试实验{i+1}.jpg",
@@ -478,7 +473,7 @@ async def create_test_data():
             review_issues=[],
             force_new=True
         )
-        print(f"✅ 创建测试记录: exp_id={exp_id}")
+        print(f"[INFO] 创建测试记录: exp_id={exp_id}")
     
     return {"success": True, "message": "测试数据创建成功"}
 
@@ -552,35 +547,34 @@ async def chat(query: str):
 @app.post("/api/chat/stream")
 async def chat_stream(query: str):
     """与AI进行知识问答（流式回复）"""
-    async def generate_stream() -> Iterator[str]:
+    async def generate_stream() -> AsyncIterator[str]:
         try:
             import os
-            from openai import OpenAI
+            from openai import AsyncOpenAI
             
             API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-eec9cb28d6804d18aaddcdb4bdd9a1b9")
             BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
             
             system_prompt = "你是一位晶体生长领域的专家，精通各种晶体生长方法、原理和技术。请以专业、准确、详细的方式回答关于晶体生长的问题，包括但不限于生长方法、参数优化、常见问题及解决方案等。"
             
-            client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+            client = AsyncOpenAI(api_key=API_KEY, base_url=BASE_URL)
             
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query}
             ]
             
-            stream = client.chat.completions.create(
+            stream = await client.chat.completions.create(
                 model="qwen-plus",
                 messages=messages,
                 stream=True
             )
             
-            for chunk in stream:
+            async for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
                     yield chunk.choices[0].delta.content
                     
         except Exception as e:
-            # 如果API调用失败，返回模拟回答
             sample_questions = {
                 "什么是晶体生长": "晶体生长是指从气相、液相或固相物质中形成具有规则几何外形的晶体的过程。",
                 "晶体生长方法": "常见的晶体生长方法包括：1. 提拉法 2. 坩埚下降法 3. 水热法 4. 气相生长法",
@@ -596,7 +590,6 @@ async def chat_stream(query: str):
             if not answer:
                 answer = "作为晶体生长领域的专家，我可以为您解答相关问题。"
             
-            # 模拟流式输出
             for i in range(0, len(answer), 5):
                 yield answer[i:i+5]
                 await asyncio.sleep(0.1)
