@@ -63,7 +63,9 @@ class ApiService {
     try {
       var response = await http.get(Uri.parse('$baseUrl/api/tasks'));
       if (response.statusCode == 200) {
-        var jsonResponse = json.decode(response.body);
+        // 使用utf8解码确保正确处理中文字符
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
         var tasksJson = jsonResponse['tasks'] as List;
         return tasksJson.map((task) => Task.fromJson(task)).toList();
       }
@@ -78,7 +80,8 @@ class ApiService {
     try {
       var response = await http.get(Uri.parse('$baseUrl/api/task/$taskId'));
       if (response.statusCode == 200) {
-        var jsonResponse = json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
         return Task.fromJson(jsonResponse['task']);
       }
       return null;
@@ -92,7 +95,8 @@ class ApiService {
     try {
       var response = await http.get(Uri.parse('$baseUrl/api/experiments'));
       if (response.statusCode == 200) {
-        var jsonResponse = json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
         var experimentsJson = jsonResponse['experiments'] as List;
         return experimentsJson.map((exp) => Experiment.fromJson(exp)).toList();
       }
@@ -107,7 +111,8 @@ class ApiService {
     try {
       var response = await http.get(Uri.parse('$baseUrl/api/experiment/$experimentId'));
       if (response.statusCode == 200) {
-        var jsonResponse = json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
         return Experiment.fromJson(jsonResponse);
       }
       return null;
@@ -191,7 +196,8 @@ class ApiService {
         Uri.parse('$baseUrl/api/task/$taskId/save_to_experiments'),
       );
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        return json.decode(responseBody);
       }
       return null;
     } catch (e) {
@@ -206,7 +212,8 @@ class ApiService {
         Uri.parse('$baseUrl/api/task/$taskId/reject?feedback=${Uri.encodeQueryComponent(feedback)}'),
       );
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        return json.decode(responseBody);
       }
       return null;
     } catch (e) {
@@ -221,7 +228,8 @@ class ApiService {
         Uri.parse('$baseUrl/api/chat?query=${Uri.encodeQueryComponent(message)}'),
       );
       if (response.statusCode == 200) {
-        var jsonResponse = json.decode(response.body);
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
         if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
           return jsonResponse['data']['answer'];
         }

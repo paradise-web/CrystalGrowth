@@ -28,6 +28,7 @@ class ExperimentDB:
     def _init_database(self):
         """初始化数据库表结构"""
         conn = sqlite3.connect(self.db_path)
+        conn.text_factory = str
         cursor = conn.cursor()
         
         # 创建实验记录表
@@ -210,6 +211,7 @@ class ExperimentDB:
             存在的记录字典，如果不存在则返回 None
         """
         conn = sqlite3.connect(self.db_path)
+        conn.text_factory = str
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         

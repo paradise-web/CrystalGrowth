@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Experiment {
   final int id;
   final String imageFilename;
@@ -22,8 +24,20 @@ class Experiment {
   });
 
   factory Experiment.fromJson(Map<String, dynamic> json) {
-    var issuesJson = json['review_issues'] as List? ?? [];
-    var issues = issuesJson.map((issue) => ReviewIssue.fromJson(issue)).toList();
+    var issuesJson = json['review_issues'];
+    List<ReviewIssue> issues = [];
+    if (issuesJson != null) {
+      if (issuesJson is List) {
+        issues = issuesJson.map((issue) => ReviewIssue.fromJson(issue)).toList();
+      } else if (issuesJson is String && issuesJson.isNotEmpty) {
+        try {
+          var parsed = jsonDecode(issuesJson) as List;
+          issues = parsed.map((issue) => ReviewIssue.fromJson(issue)).toList();
+        } catch (e) {
+          issues = [];
+        }
+      }
+    }
 
     return Experiment(
       id: json['id'] ?? 0,

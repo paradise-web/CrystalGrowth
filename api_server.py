@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Backgroun
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+import uvicorn
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any, Iterator, AsyncIterator
 import os
@@ -26,6 +27,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 确保所有JSON响应使用UTF-8编码
+@app.middleware("http")
+async def add_charset_header(request, call_next):
+    response = await call_next(request)
+    if "application/json" in response.headers.get("content-type", ""):
+        content_type = response.headers["content-type"]
+        if "charset" not in content_type:
+            response.headers["content-type"] = content_type + "; charset=utf-8"
+    return response
 
 # 静态文件服务
 STORAGE_DIR = Path("storage")
