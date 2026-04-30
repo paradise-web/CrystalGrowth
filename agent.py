@@ -306,7 +306,7 @@ def get_formatter_prompt(reference_style_content: str = "") -> str:
        - **严禁模仿风格参考文件中的数据内容**，仅参考其标题层级和排版风格。
        - 对于配料表（Ingredients Table），如果用户提供了【真实配料表数据（必须使用）】块，**必须完全忠实于该数据块**，直接将其嵌入表格中，完全忽略风格参考文件中的配料表数据。
     
-    **🔇 【静默原则/客观性约束】严禁添加质疑性备注或警告信息**：
+    **[TOOL] 【静默原则/客观性约束】严禁添加质疑性备注或警告信息**：
        - **绝对中立**：你是一个客观的记录工具，不是评审专家。你的唯一任务是将 JSON 数据转换为格式化的 Markdown 报告，**严禁**对数据的合理性、科学性、矛盾点进行任何形式的点评、质疑或警告。
        - **禁止质疑**：即使数据看起来违反常理（例如"固相法"使用了"双温区"），你也必须照实记录，**严禁**添加任何"疑点说明"、"警告符号([WARN])"、"建议核实"、"可能为..."等主观性文字。
        - **信任上游**：默认所有输入的 JSON 数据都已经过人工专家（Role B）的严格审核。如果数据中有矛盾，那是专家的意图，不需要你来指出或解释。
@@ -614,7 +614,7 @@ def compare_with_historical_experiments(
     
     report_lines = []
     report_lines.append("\n" + "="*70)
-    report_lines.append("📚 历史实验记忆回溯 (RAG)")
+    report_lines.append("[HIST] 历史实验记忆回溯 (RAG)")
     report_lines.append("="*70)
     
     # 提取当前实验的关键参数
@@ -821,9 +821,9 @@ def reviewer_node(state: AgentState) -> AgentState:
     if historical_experiments:
         print(f"[OK] [RAG] 找到 {len(historical_experiments)} 条历史实验记录")
         historical_context = compare_with_historical_experiments(data, historical_experiments)
-        print(historical_context)
+        # print(historical_context)
     else:
-        print("ℹ️ [RAG] 未找到相关历史实验记录")
+        print("[INFO] [RAG] 未找到相关历史实验记录")
     
     # ========== 外部文献 RAG: 配方校验和知识增强 ==========
     external_issues = []
@@ -1248,7 +1248,7 @@ def formatter_node(state: AgentState) -> AgentState:
     
     # ========== 外部文献 RAG: 知识增强（补充材料物理性质）==========
     if EXTERNAL_RAG_AVAILABLE:
-        print("📚 [Knowledge Enhancement] 正在补充材料信息...")
+        print("[INFO] [Knowledge Enhancement] 正在补充材料信息...")
         
         for exp in data.get("experiments", []):
             main_compound = extract_main_compound({"experiments": [exp]})

@@ -932,7 +932,9 @@ class ExperimentDB:
         conn.close()
         
         if row:
-            return dict(row)
+            task_dict = dict(row)
+            task_dict.pop('image_bytes', None)
+            return task_dict
         return None
     
     def get_pending_tasks(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -951,7 +953,13 @@ class ExperimentDB:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        tasks = []
+        for row in rows:
+            task_dict = dict(row)
+            task_dict.pop('image_bytes', None)
+            tasks.append(task_dict)
+        
+        return tasks
     
     def get_tasks_needing_review(self) -> List[Dict[str, Any]]:
         """
@@ -971,7 +979,13 @@ class ExperimentDB:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        tasks = []
+        for row in rows:
+            task_dict = dict(row)
+            task_dict.pop('image_bytes', None)
+            tasks.append(task_dict)
+        
+        return tasks
     
     def delete_task(self, task_id: str) -> bool:
         """
@@ -1004,7 +1018,13 @@ class ExperimentDB:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        tasks = []
+        for row in rows:
+            task_dict = dict(row)
+            task_dict.pop('image_bytes', None)
+            tasks.append(task_dict)
+        
+        return tasks
 
     def get_processing_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
@@ -1024,7 +1044,13 @@ class ExperimentDB:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
+        tasks = []
+        for row in rows:
+            task_dict = dict(row)
+            task_dict.pop('image_bytes', None)
+            tasks.append(task_dict)
+        
+        return tasks
     
     def search_experiments_by_compound(
         self,
