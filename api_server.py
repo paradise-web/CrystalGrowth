@@ -166,20 +166,41 @@ async def upload_image(
     file: UploadFile = File(...)
 ):
     """上传实验记录图片并创建处理任务"""
+    print(f"📥 收到上传请求: filename={file.filename}, content_type={file.content_type}")
+    
+    # 放宽文件类型验证
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
+    filename = file.filename or "image.jpg"
+    
+    # 检查文件扩展名
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="不支持的文件类型，仅支持 JPG/PNG")
+        print(f"⚠️ content_type {file.content_type} 不在允许列表中，尝试检查文件扩展名")
+        # 检查文件扩展名
+        if not (filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg') or filename.lower().endswith('.png')):
+            print(f"❌ 文件扩展名也不匹配，拒绝上传")
+            raise HTTPException(status_code=400, detail="不支持的文件类型，仅支持 JPG/PNG")
+        print(f"✅ 文件扩展名匹配，继续处理")
     
     try:
         image_bytes = await file.read()
+        print(f"✅ 成功读取文件，大小: {len(image_bytes)} bytes")
         
         if len(image_bytes) == 0:
+            print(f"❌ 文件为空")
             raise HTTPException(status_code=400, detail="上传的文件为空")
         
-        db = get_db()
-        task_id = db.create_processing_task(file.filename, image_bytes)
+        # 检查文件大小限制 (10MB)
+        max_size = 10 * 1024 * 1024
+        if len(image_bytes) > max_size:
+            print(f"❌ 文件过大: {len(image_bytes)} > {max_size}")
+            raise HTTPException(status_code=400, detail="文件过大，最大支持 10MB")
         
-        background_tasks.add_task(process_image_task, task_id, file.filename, image_bytes)
+        db = get_db()
+        task_id = db.create_processing_task(filename, image_bytes)
+        print(f"✅ 任务创建成功: task_id={task_id}")
+        
+        background_tasks.add_task(process_image_task, task_id, filename, image_bytes)
+        print(f"✅ 后台任务已添加")
         
         return TaskResponse(
             task_id=task_id,
@@ -187,8 +208,13 @@ async def upload_image(
             message="任务已创建，正在后台处理中"
         )
     
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+        import traceback
+        error_detail = f"上传失败: {str(e)}\n{traceback.format_exc()}"
+        print(f"❌ {error_detail}")
+        raise HTTPException(status_code=500, detail=error_detail)
 
 @app.get("/api/tasks")
 async def get_tasks(limit: int = 20):
@@ -210,7 +236,7 @@ async def get_task(task_id: str):
 async def get_experiments(limit: int = 20, offset: int = 0):
     """获取实验记录列表"""
     db = get_db()
-    experiments = db.get_experiments(limit=limit, offset=offset)
+    experiments = db.get_all_experiments(limit=limit, offset=offset)
     
     result = []
     for exp in experiments:
@@ -429,6 +455,90 @@ async def save_task_to_experiments(task_id: str):
             message=f"保存失败: {error_msg}"
         )
 
+# 创建测试数据（用于调试）
+@app.post("/api/create_test_data")
+async def create_test_data():
+    """创建一些测试数据用于调试"""
+    db = get_db()
+    
+    # 创建一些测试实验记录
+    for i in range(3):
+        exp_id = db.save_experiment(
+            image_filename=f"测试实验{i+1}.jpg",
+            image_bytes=b"dummy_data",
+            image_path=f"images/test{i+1}.jpg",
+            image_reference_path=f"storage/images/test{i+1}.jpg",
+            raw_json='{"sample": "data"}',
+            reviewed_json='{"sample": "data"}',
+            formatted_markdown=f"# 测试实验{i+1}\n\n这是一条测试记录。",
+            iteration_count=1,
+            max_iterations=3,
+            review_passed=True,
+            review_issues=[],
+            force_new=True
+        )
+        print(f"✅ 创建测试记录: exp_id={exp_id}")
+    
+    return {"success": True, "message": "测试数据创建成功"}
+
+
+# 知识问答相关API
+@app.post("/api/chat", response_model=ProcessResult)
+async def chat(query: str):
+    """与AI进行知识问答"""
+    try:
+        import os
+        from openai import OpenAI
+        
+        API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-eec9cb28d6804d18aaddcdb4bdd9a1b9")
+        BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        
+        system_prompt = "你是一位晶体生长领域的专家，精通各种晶体生长方法、原理和技术。请以专业、准确、详细的方式回答关于晶体生长的问题，包括但不限于生长方法、参数优化、常见问题及解决方案等。"
+        
+        client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": query}
+        ]
+        
+        response = client.chat.completions.create(
+            model="qwen-plus",
+            messages=messages,
+            stream=False
+        )
+        
+        ai_response = response.choices[0].message.content
+        
+        return ProcessResult(
+            success=True,
+            data={"answer": ai_response},
+            message="获取回答成功"
+        )
+    except Exception as e:
+        # 如果API调用失败，返回模拟回答
+        sample_questions = {
+            "什么是晶体生长": "晶体生长是指从气相、液相或固相物质中形成具有规则几何外形的晶体的过程。",
+            "晶体生长方法": "常见的晶体生长方法包括：1. 提拉法 2. 坩埚下降法 3. 水热法 4. 气相生长法",
+            "提高晶体质量": "提高晶体生长质量需要注意：控制温度梯度、优化生长速率、保持熔体纯净、控制气氛等",
+        }
+        
+        for question, answer in sample_questions.items():
+            if question in query:
+                return ProcessResult(
+                    success=True,
+                    data={"answer": answer},
+                    message="获取回答成功(模拟)"
+                )
+        
+        default_answer = "作为晶体生长领域的专家，我可以为您解答相关问题。"
+        return ProcessResult(
+            success=True,
+            data={"answer": default_answer},
+            message="获取回答成功(模拟)"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

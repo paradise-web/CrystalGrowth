@@ -101,7 +101,7 @@ class _TasksPageState extends State<TasksPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('任务列表'),
+        title: const Text('🔄 待审批'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

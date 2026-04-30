@@ -59,7 +59,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('统计信息'),
+        title: const Text('📊 统计信息'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

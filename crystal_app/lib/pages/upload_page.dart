@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
@@ -13,6 +15,8 @@ class UploadPage extends StatefulWidget {
 
 class _UploadPageState extends State<UploadPage> {
   File? _imageFile;
+  Uint8List? _webImageData;
+  String? _webImageName;
   bool _isUploading = false;
   TaskResponse? _uploadResult;
 
@@ -22,10 +26,21 @@ class _UploadPageState extends State<UploadPage> {
     try {
       final pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
-        setState(() {
-          _imageFile = File(pickedFile.path);
-          _uploadResult = null;
-        });
+        if (kIsWeb) {
+          final bytes = await pickedFile.readAsBytes();
+          setState(() {
+            _webImageData = bytes;
+            _webImageName = pickedFile.name;
+            _imageFile = null;
+            _uploadResult = null;
+          });
+        } else {
+          setState(() {
+            _imageFile = File(pickedFile.path);
+            _webImageData = null;
+            _uploadResult = null;
+          });
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -35,13 +50,18 @@ class _UploadPageState extends State<UploadPage> {
   }
 
   Future<void> _uploadImage() async {
-    if (_imageFile == null) return;
+    if (_imageFile == null && _webImageData == null) return;
 
     setState(() {
       _isUploading = true;
     });
 
-    TaskResponse? result = await ApiService.uploadImage(_imageFile!);
+    TaskResponse? result;
+    if (kIsWeb && _webImageData != null) {
+      result = await ApiService.uploadWebImage(_webImageData!, _webImageName ?? 'image.jpg');
+    } else if (_imageFile != null) {
+      result = await ApiService.uploadImage(_imageFile!);
+    }
 
     setState(() {
       _isUploading = false;
@@ -59,11 +79,28 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
+  Widget _buildImagePreview() {
+    if (kIsWeb && _webImageData != null) {
+      return Image.memory(
+        _webImageData!,
+        fit: BoxFit.contain,
+      );
+    } else if (_imageFile != null) {
+      return Image.file(
+        _imageFile!,
+        fit: BoxFit.contain,
+      );
+    }
+    return const SizedBox();
+  }
+
+  bool get hasImage => _imageFile != null || (_webImageData != null && _webImageData!.isNotEmpty);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('上传实验记录'),
+        title: const Text('📤 文件上传'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -72,7 +109,7 @@ class _UploadPageState extends State<UploadPage> {
           children: [
             const SizedBox(height: 20),
             
-            if (_imageFile != null)
+            if (hasImage)
               Column(
                 children: [
                   Container(
@@ -82,17 +119,18 @@ class _UploadPageState extends State<UploadPage> {
                       border: Border.all(color: Colors.grey),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Image.file(
-                      _imageFile!,
-                      fit: BoxFit.contain,
-                    ),
+                    child: _buildImagePreview(),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => setState(() => _imageFile = null),
+                          onPressed: () => setState(() {
+                            _imageFile = null;
+                            _webImageData = null;
+                            _uploadResult = null;
+                          }),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey,
                           ),
@@ -123,9 +161,9 @@ class _UploadPageState extends State<UploadPage> {
                     width: double.infinity,
                     height: 300,
                     decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: const Center(
                       child: Text('点击下方按钮选择图片'),
                     ),

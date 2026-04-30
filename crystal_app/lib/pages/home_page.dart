@@ -13,6 +13,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   Statistics? _statistics;
   bool _isLoading = true;
+  bool _creatingTestData = false;
 
   @override
   void initState() {
@@ -24,9 +25,39 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isLoading = true;
     });
-    _statistics = await ApiService.getStatistics();
+    try {
+      _statistics = await ApiService.getStatistics();
+    } catch (e) {
+      print('加载统计信息失败: $e');
+    }
     setState(() {
       _isLoading = false;
+    });
+  }
+
+  Future<void> _createTestData() async {
+    setState(() {
+      _creatingTestData = true;
+    });
+    try {
+      var response = await ApiService.createTestData();
+      if (response != null && response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('测试数据创建成功！')),
+        );
+        await _loadStatistics(); // 重新加载统计信息
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('创建测试数据失败')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('创建测试数据失败: $e')),
+      );
+    }
+    setState(() {
+      _creatingTestData = false;
     });
   }
 
@@ -34,7 +65,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('晶体生长实验记录助手'),
+        title: const Text('🏠 首页'),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -57,6 +88,31 @@ class _HomePageState extends State<HomePage> {
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _buildStatisticsCards(),
+
+              const SizedBox(height: 20),
+
+              // 创建测试数据按钮
+              ElevatedButton.icon(
+                onPressed: _creatingTestData ? null : _createTestData,
+                icon: _creatingTestData
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.add_circle_outline),
+                label: Text(_creatingTestData ? '创建中...' : '创建测试数据'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF667eea),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
 
               const SizedBox(height: 30),
 

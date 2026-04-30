@@ -73,7 +73,7 @@ class _ExperimentsPageState extends State<ExperimentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('实验记录'),
+        title: const Text('📚 历史记录'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

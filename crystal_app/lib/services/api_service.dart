@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../models/experiment.dart';
 import '../models/task.dart';
@@ -16,6 +17,33 @@ class ApiService {
       );
       request.files.add(
         await http.MultipartFile.fromPath('file', imageFile.path),
+      );
+
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        var responseBody = await response.stream.bytesToString();
+        var jsonResponse = json.decode(responseBody);
+        return TaskResponse.fromJson(jsonResponse);
+      }
+      return null;
+    } catch (e) {
+      print('上传图片失败: $e');
+      return null;
+    }
+  }
+
+  static Future<TaskResponse?> uploadWebImage(Uint8List imageBytes, String fileName) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/upload'),
+      );
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          imageBytes,
+          filename: fileName,
+        ),
       );
 
       var response = await request.send();
@@ -168,6 +196,39 @@ class ApiService {
       return null;
     } catch (e) {
       print('保存任务失败: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> sendChatMessage(String message) async {
+    try {
+      var response = await http.post(
+        Uri.parse('$baseUrl/api/chat?query=${Uri.encodeQueryComponent(message)}'),
+      );
+      if (response.statusCode == 200) {
+        var jsonResponse = json.decode(response.body);
+        if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
+          return jsonResponse['data']['answer'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('发送消息失败: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createTestData() async {
+    try {
+      var response = await http.post(
+        Uri.parse('$baseUrl/api/create_test_data'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('创建测试数据失败: $e');
       return null;
     }
   }

@@ -4,6 +4,7 @@ import 'pages/upload_page.dart';
 import 'pages/tasks_page.dart';
 import 'pages/experiments_page.dart';
 import 'pages/statistics_page.dart';
+import 'pages/chat_page.dart';
 
 void main() {
   runApp(const CrystalApp());
@@ -49,6 +50,7 @@ class _MainPageState extends State<MainPage> {
     TasksPage(),
     ExperimentsPage(),
     StatisticsPage(),
+    ChatPage(),
   ];
 
   static const List<BottomNavigationBarItem> _navItems = [
@@ -71,6 +73,10 @@ class _MainPageState extends State<MainPage> {
     BottomNavigationBarItem(
       icon: Icon(Icons.bar_chart),
       label: '统计',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.chat),
+      label: '问答',
     ),
   ];
 
