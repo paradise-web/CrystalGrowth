@@ -200,6 +200,21 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>?> rejectTask(String taskId, String feedback) async {
+    try {
+      var response = await http.post(
+        Uri.parse('$baseUrl/api/task/$taskId/reject?feedback=${Uri.encodeQueryComponent(feedback)}'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('拒绝任务失败: $e');
+      return null;
+    }
+  }
+
   static Future<String?> sendChatMessage(String message) async {
     try {
       var response = await http.post(

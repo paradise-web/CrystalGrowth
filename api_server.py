@@ -423,7 +423,7 @@ async def save_task_to_experiments(task_id: str):
             formatted_markdown=formatted_markdown,
             iteration_count=iteration_count,
             max_iterations=max_iterations,
-            review_passed=False,
+            review_passed=True,
             review_issues=review_issues,
             force_new=True
         )
@@ -451,6 +451,41 @@ async def save_task_to_experiments(task_id: str):
             data=None,
             message=f"保存失败: {error_msg}"
         )
+
+@app.post("/api/task/{task_id}/reject", response_model=ProcessResult)
+async def reject_task(task_id: str, feedback: str):
+    """拒绝任务并提供反馈，系统将根据反馈重新处理"""
+    db = get_db()
+    task = db.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    if task.get('status') != 'pending_review':
+        raise HTTPException(status_code=400, detail="任务未进入待审批状态，无法拒绝")
+
+    try:
+        db.update_task_status(
+            task_id,
+            'processing',
+            progress=0,
+            current_step='根据反馈重新处理'
+        )
+
+        return ProcessResult(
+            success=True,
+            data={"task_id": task_id, "feedback": feedback},
+            message="已收到反馈，正在重新处理"
+        )
+
+    except Exception as e:
+        import traceback
+        error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        return ProcessResult(
+            success=False,
+            data=None,
+            message=f"拒绝失败: {error_msg}"
+        )
+
 
 # 创建测试数据（用于调试）
 @app.post("/api/create_test_data")
