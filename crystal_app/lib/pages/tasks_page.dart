@@ -73,8 +73,10 @@ class _TasksPageState extends State<TasksPage> {
         return Colors.orange;
       case 'processing':
         return Colors.blue;
-      case 'completed':
+      case 'pending_review':
         return Colors.green;
+      case 'completed':
+        return Colors.teal;
       case 'failed':
         return Colors.red;
       default:
@@ -88,8 +90,10 @@ class _TasksPageState extends State<TasksPage> {
         return '待处理';
       case 'processing':
         return '处理中';
-      case 'completed':
+      case 'pending_review':
         return '待审批';
+      case 'completed':
+        return '已入库';
       case 'failed':
         return '失败';
       default:
@@ -121,7 +125,7 @@ class _TasksPageState extends State<TasksPage> {
                       endActionPane: ActionPane(
                         motion: const ScrollMotion(),
                         children: [
-                          if (task.status == 'completed')
+                          if (task.status == 'pending_review')
                             SlidableAction(
                               onPressed: (context) => _saveTaskToExperiments(task.taskId),
                               backgroundColor: Colors.green,
@@ -186,7 +190,7 @@ class _TasksPageState extends State<TasksPage> {
                                   style: const TextStyle(color: Colors.red),
                                 ),
                               ],
-                              if (task.status == 'completed') ...[
+                              if (task.status == 'pending_review') ...[
                                 const SizedBox(height: 8),
                                 ElevatedButton.icon(
                                   onPressed: () => _saveTaskToExperiments(task.taskId),

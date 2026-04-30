@@ -62,20 +62,22 @@ class TaskWorker:
             
                 agent = create_lab_agent_graph()
             
+                # 检查任务是否有之前的人工反馈（即审批失败后重新处理的任务）
+                task_has_human_feedback = task.get('human_feedback', '')
                 initial_state = {
                     "image_path": temp_img_path,
                     "image_reference_path": image_filename,
                     "output_path": output_md_path,
-                    "raw_json": "",
-                    "reviewed_json": "",
-                    "formatted_markdown": "",
-                    "needs_correction": False,
-                    "correction_hints": "",
-                    "iteration_count": 0,
+                    "raw_json": task.get('raw_json', ''),  # 如果有之前的处理结果，保留
+                    "reviewed_json": task.get('reviewed_json', ''),
+                    "formatted_markdown": task.get('formatted_markdown', ''),
+                    "needs_correction": bool(task_has_human_feedback != ''),
+                    "correction_hints": task_has_human_feedback,  # 将人工反馈作为修正提示
+                    "iteration_count": task.get('iteration_count', 0),
                     "max_iterations": st.session_state.get('max_iter', 3),
                     "review_issues": [],
                     "review_passed": False,
-                    "human_feedback": "",
+                    "human_feedback": task_has_human_feedback,
                     "needs_human_review": False,
                     "messages": []
                 }
@@ -114,7 +116,7 @@ class TaskWorker:
                         # 需要人工审核，进入待审批队列
                         self.db.update_task_status(
                             task_id, 
-                            'completed', 
+                            'pending_review', 
                             progress=100, 
                             current_step='待审批',
                             raw_json=final_state.get("raw_json", ""),
@@ -126,12 +128,32 @@ class TaskWorker:
                         )
                         print(f"[OK] [TaskWorker] 任务 {task_id} 已进入待审批队列")
                     else:
-                        # 无需人工审核（已通过人工审核覆盖），直接完成
+                        # 无需人工审核（已通过人工审核覆盖），直接完成并入库
+                        # 获取包含图片字节的完整任务数据
+                        task_with_image = self.db.get_task(task_id, include_image_bytes=True)
+                        # 直接入库到 experiments 表
+                        experiment_id = self.db.save_experiment(
+                            image_filename=task_with_image['image_filename'],
+                            image_bytes=task_with_image.get('image_bytes'),
+                            image_path=None,
+                            image_reference_path=task_with_image['image_filename'],
+                            raw_json=final_state.get('raw_json', ''),
+                            reviewed_json=final_state.get('reviewed_json', ''),
+                            formatted_markdown=final_state.get('formatted_markdown', ''),
+                            iteration_count=final_state.get('iteration_count', 0),
+                            max_iterations=final_state.get('max_iterations', 3),
+                            review_passed=True,
+                            review_issues=final_state.get('review_issues', []),
+                            human_feedback='自动审批通过',
+                            review_passed_override=True
+                        )
+                        # 更新任务状态为 completed 并标记已入库
                         self.db.update_task_status(
                             task_id, 
                             'completed', 
                             progress=100, 
-                            current_step='处理完成',
+                            current_step='已入库',
+                            experiment_id=experiment_id,
                             raw_json=final_state.get("raw_json", ""),
                             reviewed_json=final_state.get("reviewed_json", ""),
                             formatted_markdown=final_state.get("formatted_markdown", ""),
@@ -139,7 +161,7 @@ class TaskWorker:
                             max_iterations=final_state.get("max_iterations", 3),
                             review_issues=review_issues_json
                         )
-                        print(f"[OK] [TaskWorker] 任务 {task_id} 处理完成")
+                        print(f"[OK] [TaskWorker] 任务 {task_id} 处理完成并已入库，experiment_id={experiment_id}")
                 else:
                     self.db.update_task_status(
                         task_id, 
@@ -536,9 +558,12 @@ with tab2:
                         st.status("⏳ 待处理", state="running")
                     elif status == 'processing':
                         st.progress(task['progress'], text=f"处理中: {task['current_step']}")
-                    elif status == 'completed':
+                    elif status == 'pending_review':
                         st.status("[OK] 处理完成，待审批", state="complete")
-                        st.info("请手动切换到「� 待审批」标签页进行审核")
+                        st.info("请切换到「🔄 待审批」标签页进行审核")
+                    elif status == 'completed':
+                        st.status("[OK] 已入库", state="success")
+                        st.info("记录已保存到实验数据库")
                     elif status == 'failed':
                         st.status("[ERROR] 处理失败", state="error")
                         st.error(task.get('error_message', '未知错误'))
@@ -1143,17 +1168,20 @@ with tab3:
                                     )
                                     
                                     if all_conditions_met:
+                                        # 获取包含图片字节的完整任务数据
+                                        task_with_image = db.get_task(task['task_id'], include_image_bytes=True)
+                                        
                                         # 所有条件满足，执行入库操作
                                         experiment_id = db.save_experiment(
-                                            image_filename=task['image_filename'],
-                                            image_bytes=task['image_bytes'],
+                                            image_filename=task_with_image['image_filename'],
+                                            image_bytes=task_with_image.get('image_bytes'),
                                             image_path=None,
-                                            image_reference_path=task['image_filename'],
-                                            raw_json=task.get('raw_json', ''),
-                                            reviewed_json=task.get('reviewed_json', ''),
-                                            formatted_markdown=task.get('formatted_markdown', ''),
-                                            iteration_count=task.get('iteration_count', 0),
-                                            max_iterations=task.get('max_iterations', 3),
+                                            image_reference_path=task_with_image['image_filename'],
+                                            raw_json=task_with_image.get('raw_json', ''),
+                                            reviewed_json=task_with_image.get('reviewed_json', ''),
+                                            formatted_markdown=task_with_image.get('formatted_markdown', ''),
+                                            iteration_count=task_with_image.get('iteration_count', 0),
+                                            max_iterations=task_with_image.get('max_iterations', 3),
                                             review_passed=True,
                                             review_issues=review_issues,
                                             human_feedback=f"人工审核通过 | 备注: {feedback_text}",
@@ -1177,6 +1205,7 @@ with tab3:
                                         
                                         db.delete_task(task['task_id'])
                                         st.success(f"审核通过！记录已保存 (ID: {experiment_id})")
+                                        st.rerun()
                                     else:
                                         # 条件不满足，拒绝入库
                                         st.error("[ERROR] 入库条件校验失败")
@@ -1201,14 +1230,14 @@ with tab3:
                                         }
                                     )
                                     
+                                    # 更新任务状态为待重新处理，保留原处理结果供参考
                                     db.update_task_status(
                                         task['task_id'], 
                                         'pending', 
                                         progress=0,
-                                        raw_json="",
-                                        reviewed_json="",
-                                        formatted_markdown="",
-                                        review_issues=""
+                                        current_step='待重新处理',
+                                        human_feedback=feedback_text
+                                        # 保留原有的 formatted_markdown 和 review_issues 供参考
                                     )
                                     st.info("已记录不通过原因，任务已重新提交处理")
                                 st.rerun()

@@ -659,13 +659,13 @@ class ExperimentDB:
         if task:
             # 条件a: Agent已完成处理 - 检查是否有处理结果
             conditions['agent_processing_completed'] = (
-                task.get('status') == 'completed' and 
+                task.get('status') == 'pending_review' and 
                 (task.get('raw_json') or task.get('reviewed_json') or task.get('formatted_markdown'))
             )
             
-            # 条件b: 任务状态为待审核
+            # 条件b: 任务状态为待审核（使用专门的待审批状态）
             conditions['status_pending_review'] = (
-                task.get('status') == 'completed' and task.get('experiment_id') is None
+                task.get('status') == 'pending_review'
             )
             
             # 条件c: 用户已点击"通过审核"按钮
@@ -919,9 +919,13 @@ class ExperimentDB:
         conn.commit()
         conn.close()
     
-    def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+    def get_task(self, task_id: str, include_image_bytes: bool = False) -> Optional[Dict[str, Any]]:
         """
         根据任务ID获取任务信息
+        
+        Args:
+            task_id: 任务ID
+            include_image_bytes: 是否包含图片二进制数据（用于审批入库）
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -933,7 +937,8 @@ class ExperimentDB:
         
         if row:
             task_dict = dict(row)
-            task_dict.pop('image_bytes', None)
+            if not include_image_bytes:
+                task_dict.pop('image_bytes', None)
             return task_dict
         return None
     
@@ -964,7 +969,7 @@ class ExperimentDB:
     def get_tasks_needing_review(self) -> List[Dict[str, Any]]:
         """
         获取需要人工审核的任务（处理完成但未保存到数据库）
-        条件：status = 'completed' AND experiment_id IS NULL
+        条件：status = 'pending_review'（专门的待审批状态）
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -972,7 +977,7 @@ class ExperimentDB:
         
         cursor.execute("""
             SELECT * FROM processing_tasks
-            WHERE status = 'completed' AND experiment_id IS NULL
+            WHERE status = 'pending_review'
             ORDER BY created_at DESC
         """)
         
@@ -1028,16 +1033,15 @@ class ExperimentDB:
 
     def get_processing_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        获取所有处理任务（包括所有状态）
+        获取所有任务（待处理、处理中、待审批、已完成、失败）
         用于文件上传页面的任务列表显示
-        确保与待审批页面的任务数目一致
         """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         cursor.execute(
-            "SELECT * FROM processing_tasks WHERE status != 'completed' ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM processing_tasks ORDER BY created_at DESC LIMIT ?",
             (limit,)
         )
         

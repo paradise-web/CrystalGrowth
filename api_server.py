@@ -124,7 +124,7 @@ def process_image_task(task_id: str, image_filename: str, image_bytes: bytes):
                 if needs_human_review:
                     db.update_task_status(
                         task_id,
-                        'completed',
+                        'pending_review',
                         progress=100,
                         current_step='待审批',
                         raw_json=final_state.get("raw_json", ""),
@@ -371,12 +371,12 @@ async def get_statistics():
 async def save_task_to_experiments(task_id: str):
     """将处理完成的任务保存到实验记录表"""
     db = get_db()
-    task = db.get_task(task_id)
+    task = db.get_task(task_id, include_image_bytes=True)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     
-    if task.get('status') != 'completed':
-        raise HTTPException(status_code=400, detail="任务未完成，无法保存")
+    if task.get('status') != 'pending_review':
+        raise HTTPException(status_code=400, detail="任务未进入待审批状态，无法保存")
     
     try:
         # 获取任务中的图片数据
