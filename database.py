@@ -691,6 +691,32 @@ class ExperimentDB:
         
         return [dict(row) for row in rows]
     
+    def update_experiment_review(self, experiment_id: int, review_passed: bool, feedback: Optional[str] = None) -> bool:
+        """更新实验记录的审核状态"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        update_fields = ["review_passed = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [1 if review_passed else 0]
+        
+        if feedback is not None:
+            update_fields.append("human_feedback = ?")
+            params.append(feedback)
+        
+        params.append(experiment_id)
+        
+        cursor.execute(
+            f"UPDATE experiments SET {', '.join(update_fields)} WHERE id = ?",
+            params
+        )
+        
+        updated = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
+        
+        return updated
+    
     def delete_experiment(self, experiment_id: int) -> bool:
         """删除实验记录（级联删除反馈历史）"""
         conn = sqlite3.connect(self.db_path)
