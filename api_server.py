@@ -177,7 +177,7 @@ async def upload_image(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...)
 ):
-    """上传实验记录图片并创建处理任务"""
+    """上传单张实验记录图片并创建处理任务"""
     print(f"[UPLOAD] 收到上传请求: filename={file.filename}, content_type={file.content_type}")
     
     allowed_types = ["image/jpeg", "image/png", "image/jpg"]
@@ -223,6 +223,77 @@ async def upload_image(
         error_detail = f"上传失败: {str(e)}\n{traceback.format_exc()}"
         print(f"[ERROR] {error_detail}")
         raise HTTPException(status_code=500, detail=error_detail)
+
+
+class MultiUploadResponse(BaseModel):
+    success: bool
+    message: str
+    task_ids: List[str]
+    failed_count: int = 0
+    failed_files: List[str] = []
+
+
+@app.post("/api/upload/multiple", response_model=MultiUploadResponse)
+async def upload_multiple_images(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...)
+):
+    """批量上传多张实验记录图片并创建处理任务"""
+    print(f"[MULTI-UPLOAD] 收到批量上传请求: {len(files)} 个文件")
+    
+    allowed_types = ["image/jpeg", "image/png", "image/jpg"]
+    max_size = 10 * 1024 * 1024
+    max_files = 20
+    
+    if len(files) > max_files:
+        raise HTTPException(status_code=400, detail=f"一次最多上传 {max_files} 个文件")
+    
+    task_ids = []
+    failed_files = []
+    
+    for file in files:
+        try:
+            filename = file.filename or "image.jpg"
+            print(f"[MULTI-UPLOAD] 处理文件: {filename}")
+            
+            if file.content_type not in allowed_types:
+                print(f"[WARN] content_type {file.content_type} 不在允许列表中")
+                if not (filename.lower().endswith('.jpg') or filename.lower().endswith('.jpeg') or filename.lower().endswith('.png')):
+                    failed_files.append(filename)
+                    continue
+            
+            image_bytes = await file.read()
+            
+            if len(image_bytes) == 0:
+                print(f"[ERROR] 文件为空: {filename}")
+                failed_files.append(filename)
+                continue
+            
+            if len(image_bytes) > max_size:
+                print(f"[ERROR] 文件过大: {filename}")
+                failed_files.append(filename)
+                continue
+            
+            db = get_db()
+            task_id = db.create_processing_task(filename, image_bytes)
+            print(f"[INFO] 任务创建成功: task_id={task_id} for {filename}")
+            
+            background_tasks.add_task(process_image_task, task_id, filename, image_bytes)
+            task_ids.append(task_id)
+            
+        except Exception as e:
+            print(f"[ERROR] 处理文件失败 {file.filename}: {str(e)}")
+            failed_files.append(file.filename or "unknown")
+    
+    print(f"[MULTI-UPLOAD] 完成: 成功 {len(task_ids)} 个，失败 {len(failed_files)} 个")
+    
+    return MultiUploadResponse(
+        success=len(failed_files) == 0,
+        message=f"成功上传 {len(task_ids)} 个文件，{len(failed_files)} 个失败",
+        task_ids=task_ids,
+        failed_count=len(failed_files),
+        failed_files=failed_files
+    )
 
 @app.get("/api/tasks")
 async def get_tasks(limit: int = 20):

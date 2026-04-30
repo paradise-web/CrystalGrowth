@@ -1,10 +1,37 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/experiment.dart';
 import '../models/task.dart';
 import '../models/statistics.dart';
+
+class MultiUploadResult {
+  final bool success;
+  final String message;
+  final List<String> taskIds;
+  final int failedCount;
+  final List<String> failedFiles;
+
+  MultiUploadResult({
+    required this.success,
+    required this.message,
+    required this.taskIds,
+    required this.failedCount,
+    required this.failedFiles,
+  });
+
+  factory MultiUploadResult.fromJson(Map<String, dynamic> json) {
+    return MultiUploadResult(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      taskIds: List<String>.from(json['task_ids'] ?? []),
+      failedCount: json['failed_count'] ?? 0,
+      failedFiles: List<String>.from(json['failed_files'] ?? []),
+    );
+  }
+}
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8000';
@@ -272,6 +299,79 @@ class ApiService {
       return null;
     } catch (e) {
       print('创建测试数据失败: $e');
+      return null;
+    }
+  }
+
+  static Future<MultiUploadResult?> uploadMultipleImages(
+    List<File> imageFiles,
+  ) async {
+    // Web平台不支持dart:io，使用Web上传方法
+    if (kIsWeb) {
+      return uploadMultipleWebImages(
+        await Future.wait(imageFiles.map((f) => f.readAsBytes())),
+        imageFiles.map((f) => f.path.split('/').last).toList(),
+      );
+    }
+    
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/upload/multiple'),
+      );
+
+      for (var file in imageFiles) {
+        request.files.add(
+          await http.MultipartFile.fromPath('files', file.path),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200) {
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
+        return MultiUploadResult.fromJson(jsonResponse);
+      }
+      return null;
+    } catch (e) {
+      print('批量上传图片失败: $e');
+      return null;
+    }
+  }
+
+  static Future<MultiUploadResult?> uploadMultipleWebImages(
+    List<Uint8List> imageBytesList,
+    List<String> fileNames,
+  ) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/upload/multiple'),
+      );
+
+      for (int i = 0; i < imageBytesList.length; i++) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'files',
+            imageBytesList[i],
+            filename: fileNames[i],
+          ),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 200) {
+        var responseBody = utf8.decode(response.bodyBytes);
+        var jsonResponse = json.decode(responseBody);
+        return MultiUploadResult.fromJson(jsonResponse);
+      }
+      return null;
+    } catch (e) {
+      print('批量上传图片失败: $e');
       return null;
     }
   }
